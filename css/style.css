@@ -1,0 +1,410 @@
+/* ==========================================================================
+   Green Agro Seeds — Design System
+   রঙ সরাসরি লোগো থেকে প্রোগ্রামেটিকভাবে নেওয়া (#136831 / #FDFEF1)
+   টাইপোগ্রাফি: Hind Siliguri (বাংলা, body+heading) + Fraunces (ইংরেজি/সংখ্যা, স্বাক্ষর টাইপ)
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap');
+
+:root {
+  /* --- brand core (from logo) --- */
+  --green: #136831;
+  --green-2: #0d4e24;
+  --green-3: #1f8a41;
+  --green-tint: #EAF3E4;
+  --cream: #FDFEF1;
+  --cream-2: #F4F1DE;
+
+  /* --- neutrals derived from brand --- */
+  --bg: #FAF9F0;
+  --surface: #FFFFFF;
+  --surface-sunken: #F2F1E6;
+  --ink: #142B1B;
+  --ink-muted: #56685C;
+  --ink-faint: #8B9A8F;
+  --border: rgba(19, 104, 49, 0.15);
+  --border-soft: rgba(19, 104, 49, 0.08);
+
+  /* --- signal colors --- */
+  --rust: #B5502E;      /* due / overdue */
+  --rust-tint: #F7E7E1;
+  --gold: #A8822E;      /* highlight / premium marker */
+
+  --radius-sm: 8px;
+  --radius: 14px;
+  --radius-lg: 22px;
+  --shadow: 0 10px 30px -12px rgba(13, 46, 26, 0.22);
+  --shadow-sm: 0 2px 10px rgba(13, 46, 26, 0.08);
+
+  --font-bn: 'Hind Siliguri', system-ui, sans-serif;
+  --font-en: 'Fraunces', Georgia, serif;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font-bn);
+  background: var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  background-image:
+    radial-gradient(circle at 100% 0%, var(--green-tint) 0%, transparent 45%);
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+a { color: inherit; }
+button { font-family: inherit; cursor: pointer; }
+
+.en { font-family: var(--font-en); }
+
+::selection { background: var(--green); color: var(--cream); }
+
+/* --- focus visibility (accessibility floor) --- */
+button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible {
+  outline: 2px solid var(--green-3);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
+/* ==========================================================================
+   Top brand bar
+   ========================================================================== */
+
+.brandbar {
+  background: linear-gradient(160deg, var(--green) 0%, var(--green-2) 100%);
+  color: var(--cream);
+  padding: 14px clamp(16px, 4vw, 40px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  box-shadow: var(--shadow-sm);
+}
+
+.brandbar__id {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brandbar__mark {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1.6px solid var(--cream);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.brandbar__mark svg { width: 22px; height: 22px; }
+
+.brandbar__name {
+  font-family: var(--font-en);
+  font-weight: 600;
+  font-size: 19px;
+  line-height: 1.1;
+  letter-spacing: 0.2px;
+}
+
+.brandbar__sub {
+  font-size: 12.5px;
+  color: var(--cream-2);
+  opacity: 0.85;
+}
+
+.brandbar__nav {
+  display: flex;
+  gap: 4px;
+  background: rgba(253, 254, 241, 0.1);
+  padding: 4px;
+  border-radius: 999px;
+}
+
+.brandbar__nav button {
+  border: none;
+  background: transparent;
+  color: var(--cream-2);
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background .18s ease, color .18s ease;
+  white-space: nowrap;
+}
+
+.brandbar__nav button.active {
+  background: var(--cream);
+  color: var(--green-2);
+  font-weight: 600;
+}
+
+.brandbar__nav button:not(.active):hover {
+  background: rgba(253, 254, 241, 0.14);
+  color: var(--cream);
+}
+
+/* mobile: nav becomes a bottom sheet bar */
+.brandbar__nav--mobile {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  .brandbar__nav { display: none; }
+  .brandbar__nav--mobile {
+    display: flex;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--green-2);
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+    justify-content: space-around;
+    z-index: 50;
+    box-shadow: 0 -6px 20px rgba(0,0,0,0.18);
+  }
+  .brandbar__nav--mobile button {
+    border: none;
+    background: transparent;
+    color: var(--cream-2);
+    font-size: 10.5px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 6px 4px;
+    border-radius: 10px;
+    flex: 1;
+  }
+  .brandbar__nav--mobile button svg { width: 19px; height: 19px; }
+  .brandbar__nav--mobile button.active { color: var(--cream); background: rgba(253,254,241,0.12); }
+  body { padding-bottom: 64px; }
+}
+
+/* ==========================================================================
+   Shell / layout
+   ========================================================================== */
+
+.shell {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: clamp(16px, 3vw, 32px);
+}
+
+.page { display: none; animation: fadeIn .25s ease; }
+.page.active { display: block; }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+.page-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.page-head h1 {
+  font-size: clamp(20px, 3vw, 26px);
+  font-weight: 600;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.page-head p {
+  margin: 2px 0 0;
+  color: var(--ink-muted);
+  font-size: 13.5px;
+}
+
+.leaf-mark {
+  display: inline-flex;
+  width: 26px; height: 26px;
+  color: var(--green);
+  flex-shrink: 0;
+}
+.leaf-mark svg { width: 100%; height: 100%; }
+
+/* ==========================================================================
+   Cards / surfaces
+   ========================================================================== */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+.card--pad { padding: 20px clamp(16px, 3vw, 26px); }
+
+.card-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 14px;
+}
+
+/* ==========================================================================
+   Form controls
+   ========================================================================== */
+
+label.field-label {
+  display: block;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  margin: 0 0 6px;
+  font-weight: 500;
+}
+
+select, input[type=text], input[type=number], input[type=tel], textarea {
+  width: 100%;
+  padding: 11px 13px;
+  border: 1.4px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 14.5px;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+select:focus, input:focus, textarea:focus {
+  border-color: var(--green-3);
+  box-shadow: 0 0 0 3px var(--green-tint);
+}
+
+.field { margin-bottom: 15px; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 560px) { .field-row { grid-template-columns: 1fr; } }
+
+/* chip-style quantity selector */
+.chip-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip {
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1.4px solid var(--border);
+  background: var(--surface);
+  color: var(--ink-muted);
+  font-size: 13.5px;
+  font-weight: 500;
+  transition: all .15s ease;
+}
+.chip.active {
+  background: var(--green-tint);
+  color: var(--green-2);
+  border-color: var(--green-3);
+  font-weight: 600;
+}
+.chip:hover:not(.active) { border-color: var(--green-3); }
+
+/* ==========================================================================
+   Buttons
+   ========================================================================== */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-radius: var(--radius-sm);
+  border: none;
+  font-size: 14.5px;
+  font-weight: 600;
+  transition: transform .12s ease, box-shadow .12s ease, background .15s ease;
+}
+.btn:active { transform: scale(0.98); }
+
+.btn--primary {
+  background: var(--green);
+  color: var(--cream);
+  box-shadow: 0 8px 20px -8px rgba(19,104,49,0.55);
+}
+.btn--primary:hover { background: var(--green-2); }
+
+.btn--ghost {
+  background: transparent;
+  color: var(--green-2);
+  border: 1.4px solid var(--border);
+}
+.btn--ghost:hover { background: var(--green-tint); }
+
+.btn--danger { background: var(--rust-tint); color: var(--rust); }
+.btn--danger:hover { background: #f0d5cb; }
+
+.btn--block { width: 100%; }
+.btn--sm { padding: 8px 14px; font-size: 13px; }
+
+/* ==========================================================================
+   Table
+   ========================================================================== */
+
+.table-wrap { overflow-x: auto; border-radius: var(--radius-sm); border: 1px solid var(--border-soft); }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 560px; }
+thead th {
+  text-align: left;
+  background: var(--surface-sunken);
+  color: var(--ink-muted);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border-soft);
+}
+tbody td { padding: 12px 14px; border-bottom: 1px solid var(--border-soft); }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--green-tint); }
+
+/* ==========================================================================
+   Badges
+   ========================================================================== */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.badge--ok { background: var(--green-tint); color: var(--green-2); }
+.badge--due { background: var(--rust-tint); color: var(--rust); }
+.badge--gold { background: #F5EDD8; color: var(--gold); }
+
+/* ==========================================================================
+   Toast
+   ========================================================================== */
+
+#toast {
+  position: fixed;
+  bottom: 24px; left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--green-2);
+  color: var(--cream);
+  padding: 12px 22px;
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-weight: 500;
+  box-shadow: var(--shadow);
+  opacity: 0;
+  pointer-events: none;
+  transition: all .25s ease;
+  z-index: 100;
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+@media (max-width: 860px) { #toast { bottom: 76px; } }
