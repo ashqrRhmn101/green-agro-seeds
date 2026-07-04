@@ -1,0 +1,137 @@
+/* ==========================================================================
+   Page: Sale Entry (বিক্রয়)
+   ========================================================================== */
+
+.sale-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 18px;
+  align-items: start;
+}
+@media (max-width: 900px) { .sale-grid { grid-template-columns: 1fr; } }
+
+.mode-toggle {
+  display: flex;
+  background: var(--surface-sunken);
+  border-radius: var(--radius-sm);
+  padding: 4px;
+  gap: 4px;
+  margin-bottom: 18px;
+}
+.mode-toggle button {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 9px;
+  border-radius: 6px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+.mode-toggle button.active { background: var(--surface); color: var(--green-2); font-weight: 600; box-shadow: var(--shadow-sm); }
+
+.order-item {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+}
+.order-item__name { font-size: 13.5px; font-weight: 500; }
+.order-item__meta { font-size: 12px; color: var(--ink-muted); }
+.order-item__price { font-family: var(--font-en); font-weight: 600; white-space: nowrap; }
+.order-item__remove { background: none; border: none; color: var(--rust); font-size: 18px; line-height: 1; padding: 4px; }
+
+.summary-stack { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 90px; }
+
+.stat-card { padding: 16px 18px; }
+.stat-card__label { font-size: 12px; color: var(--ink-muted); margin: 0 0 4px; }
+.stat-card__value { font-family: var(--font-en); font-size: 24px; font-weight: 600; margin: 0; color: var(--ink); }
+
+.total-card {
+  background: linear-gradient(150deg, var(--green) 0%, var(--green-2) 100%);
+  color: var(--cream);
+  padding: 20px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.total-card__label { font-size: 12.5px; opacity: .8; margin: 0 0 4px; }
+.total-card__value { font-family: var(--font-en); font-size: 30px; font-weight: 600; margin: 0; }
+
+/* ==========================================================================
+   Page: Product Catalog
+   ========================================================================== */
+
+.catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.product-card { padding: 16px 18px; }
+.product-card__cat { font-size: 11.5px; color: var(--gold); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; margin: 0 0 4px; }
+.product-card__name { font-size: 16px; font-weight: 600; margin: 0 0 10px; }
+.product-card__row {
+  display: flex; justify-content: space-between; font-size: 13px;
+  padding: 6px 0; border-top: 1px dashed var(--border-soft);
+  color: var(--ink-muted);
+}
+.product-card__row b { color: var(--ink); font-family: var(--font-en); font-weight: 600; }
+
+/* ==========================================================================
+   Page: Customer Ledger (বাকি/পাওনা)
+   ========================================================================== */
+
+.customer-list { display: flex; flex-direction: column; gap: 10px; }
+.customer-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 16px;
+}
+.customer-row__name { font-weight: 600; font-size: 14.5px; }
+.customer-row__phone { font-size: 12.5px; color: var(--ink-muted); font-family: var(--font-en); }
+.customer-row__balance { font-family: var(--font-en); font-weight: 700; font-size: 16px; text-align: right; }
+.customer-row__balance.due { color: var(--rust); }
+.customer-row__balance.clear { color: var(--green-2); }
+
+.ledger-entry {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 0; border-bottom: 1px dashed var(--border-soft); font-size: 13.5px;
+}
+.ledger-entry:last-child { border-bottom: none; }
+.ledger-entry__amt.debit { color: var(--rust); font-family: var(--font-en); font-weight: 600; }
+.ledger-entry__amt.credit { color: var(--green-2); font-family: var(--font-en); font-weight: 600; }
+
+/* ==========================================================================
+   Page: Sales History
+   ========================================================================== */
+
+.history-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px;
+}
+@media (max-width: 700px) { .history-stats { grid-template-columns: repeat(2, 1fr); } }
+
+.filter-row { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+
+/* ==========================================================================
+   Empty states
+   ========================================================================== */
+
+.empty-state {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--ink-muted);
+}
+.empty-state svg { width: 40px; height: 40px; color: var(--ink-faint); margin-bottom: 10px; }
+.empty-state p { margin: 0; font-size: 14px; }
+
+/* ==========================================================================
+   Invoice / Chalan hidden print template
+   ========================================================================== */
+
+#print-root { position: fixed; left: -9999px; top: 0; width: 780px; }
