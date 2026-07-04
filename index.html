@@ -65,17 +65,24 @@
           <div class="field-row">
             <div class="field">
               <label class="field-label">ক্যাটাগরি</label>
-              <select id="saleCategory"></select>
+              <div class="select-with-add">
+                <select id="saleCategory"></select>
+                <button type="button" class="btn-add-inline" onclick="openQuickAddCategory()" title="নতুন ক্যাটাগরি যোগ করুন">+ নতুন</button>
+              </div>
             </div>
             <div class="field">
               <label class="field-label">জাতের নাম</label>
-              <select id="saleVariety"></select>
+              <div class="select-with-add">
+                <select id="saleVariety"></select>
+                <button type="button" class="btn-add-inline" onclick="openQuickAddVariety()" title="নতুন জাতের নাম যোগ করুন">+ নতুন</button>
+              </div>
             </div>
           </div>
 
           <div class="field">
             <label class="field-label">পরিমাণ (প্যাকেট সাইজ)</label>
             <div class="chip-row" id="saleQtyChips"></div>
+            <button type="button" class="btn-add-inline" style="margin-top:8px" onclick="openQuickAddQty()">+ Add — নতুন পরিমাণ ম্যানুয়ালি লিখুন</button>
           </div>
 
           <div class="field" id="packetCountWrap">
@@ -261,6 +268,84 @@
       <div class="field"><label class="field-label">ঠিকানা</label><input type="text" name="address"></div>
       <div class="field"><label class="field-label">প্রারম্ভিক বাকি (ঐচ্ছিক)</label><input type="number" name="openingDue" min="0" placeholder="0"></div>
       <button class="btn btn--primary btn--block" type="submit">যোগ করুন</button>
+    </form>
+  </div>
+</div>
+
+<!-- Quick add category/variety -->
+<div class="modal-overlay" id="quickAddModal">
+  <div class="modal-box card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div id="quickAddModalTitle" style="font-size:17px;font-weight:600"></div>
+      <button class="btn btn--ghost btn--sm" onclick="closeQuickAddModal()">বন্ধ</button>
+    </div>
+    <form id="quickAddForm">
+      <div class="field" id="quickAddCategoryField">
+        <label class="field-label">নতুন ক্যাটাগরির নাম</label>
+        <input type="text" name="categoryName" placeholder="যেমন: টমেটো বীজ">
+      </div>
+      <div class="field">
+        <label class="field-label">জাতের নাম</label>
+        <input type="text" name="varietyName" required placeholder="যেমন: বাহুবলী-৫০">
+      </div>
+      <p style="font-size:12px;color:var(--ink-muted);margin:0 0 14px">যোগ করার পর এর জন্য পরিমাণ ও দাম বসাতে হবে ("+ Add — নতুন পরিমাণ" বাটন দিয়ে)।</p>
+      <button class="btn btn--primary btn--block" type="submit">যোগ করুন</button>
+    </form>
+  </div>
+</div>
+
+<!-- Quick add custom quantity option -->
+<div class="modal-overlay" id="quickAddQtyModal">
+  <div class="modal-box card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div style="font-size:17px;font-weight:600">নতুন পরিমাণ ও দাম যোগ করুন</div>
+      <button class="btn btn--ghost btn--sm" onclick="closeQuickAddQtyModal()">বন্ধ</button>
+    </div>
+    <form id="quickAddQtyForm">
+      <div class="field-row">
+        <div class="field"><label class="field-label">পরিমাণ (সংখ্যা)</label><input type="number" name="qty" required></div>
+        <div class="field">
+          <label class="field-label">একক</label>
+          <select name="unit"><option value="গ্রাম">গ্রাম</option><option value="কেজি">কেজি</option></select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label class="field-label">প্যাকেট প্রতি দাম</label><input type="number" name="packetPrice" required></div>
+        <div class="field"><label class="field-label">কেজি প্রতি দাম</label><input type="number" name="kgPrice" required></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label class="field-label">বাল্ক/লুজ দাম (কেজি)</label><input type="number" name="bulkPrice" required></div>
+        <div class="field"><label class="field-label">খুচরা মূল্য</label><input type="number" name="retailPrice" required></div>
+      </div>
+      <button class="btn btn--primary btn--block" type="submit">যোগ করুন</button>
+    </form>
+  </div>
+</div>
+
+<!-- Edit product (catalog page) -->
+<div class="modal-overlay" id="editProductModal">
+  <div class="modal-box card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div id="editProductTitle" style="font-size:16px;font-weight:600"></div>
+      <button class="btn btn--ghost btn--sm" onclick="closeEditProductModal()">বন্ধ</button>
+    </div>
+    <form id="editProductForm">
+      <div class="field-row">
+        <div class="field"><label class="field-label">পরিমাণ (সংখ্যা)</label><input type="number" name="qty" required></div>
+        <div class="field">
+          <label class="field-label">একক</label>
+          <select name="unit"><option value="গ্রাম">গ্রাম</option><option value="কেজি">কেজি</option></select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label class="field-label">প্যাকেট প্রতি দাম</label><input type="number" name="packetPrice" required></div>
+        <div class="field"><label class="field-label">কেজি প্রতি দাম</label><input type="number" name="kgPrice" required></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label class="field-label">বাল্ক/লুজ দাম (কেজি)</label><input type="number" name="bulkPrice" required></div>
+        <div class="field"><label class="field-label">খুচরা মূল্য</label><input type="number" name="retailPrice" required></div>
+      </div>
+      <button class="btn btn--primary btn--block" type="submit">পরিবর্তন সংরক্ষণ করুন</button>
     </form>
   </div>
 </div>
