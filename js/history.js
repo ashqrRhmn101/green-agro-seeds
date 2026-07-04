@@ -1,0 +1,78 @@
+/* ==========================================================================
+   Sales History + Product Catalog rendering
+   ========================================================================== */
+
+function renderHistory() {
+  const sales = getAllSales().slice().reverse();
+  const totalRevenue = sales.reduce((s, x) => s + x.grandTotal, 0);
+  const totalDue = sales.reduce((s, x) => s + x.dueAmount, 0);
+
+  document.getElementById("histCount").textContent = sales.length.toLocaleString("bn-BD");
+  document.getElementById("histRevenue").textContent = formatTaka(totalRevenue);
+  document.getElementById("histDue").textContent = formatTaka(totalDue);
+  document.getElementById("histAvg").textContent = formatTaka(sales.length ? Math.round(totalRevenue / sales.length) : 0);
+
+  const wrap = document.getElementById("historyTableWrap");
+  if (sales.length === 0) {
+    wrap.innerHTML = `<div class="empty-state"><p>এখনো কোনো বিক্রয় রেকর্ড নেই</p></div>`;
+    return;
+  }
+
+  wrap.innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>চালান নং</th><th>তারিখ</th><th>গ্রাহক</th><th>পণ্য</th><th>মোট</th><th>পরিশোধ</th><th>বাকি</th><th></th>
+        </tr></thead>
+        <tbody>
+          ${sales.map(s => `
+            <tr>
+              <td class="en">${s.invoiceNo}</td>
+              <td>${new Date(s.date).toLocaleDateString("bn-BD")}</td>
+              <td>${s.customerName}<br><span style="color:var(--ink-faint);font-size:11.5px">${s.customerPhone}</span></td>
+              <td>${s.items.length} আইটেম</td>
+              <td class="en">${formatTaka(s.grandTotal)}</td>
+              <td class="en">${formatTaka(s.paidAmount)}</td>
+              <td class="en" style="color:${s.dueAmount > 0 ? 'var(--rust)' : 'var(--green-2)'}">${formatTaka(s.dueAmount)}</td>
+              <td>
+                <button class="btn btn--ghost btn--sm" onclick="downloadInvoicePDF('${s.invoiceNo}')">ইনভয়েস</button>
+                <button class="btn btn--ghost btn--sm" onclick="downloadChalanPDF('${s.invoiceNo}')">চালান</button>
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function findSaleByInvoice(invoiceNo) {
+  return getAllSales().find(s => s.invoiceNo === invoiceNo);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Product catalog page                                                    */
+/* ---------------------------------------------------------------------- */
+
+function renderCatalog() {
+  const catalog = getFullCatalog();
+  const wrap = document.getElementById("catalogGrid");
+  const cards = [];
+  catalog.forEach(cat => {
+    cat.varieties.forEach(v => {
+      v.options.forEach(o => {
+        cards.push(`
+          <div class="card product-card">
+            <p class="product-card__cat">${cat.category}</p>
+            <p class="product-card__name">${v.name} <span style="color:var(--ink-faint);font-weight:400;font-size:13px">(${o.qty}${o.unit})</span></p>
+            <div class="product-card__row"><span>প্যাকেট প্রতি</span><b>${formatTaka(o.packetPrice)}</b></div>
+            <div class="product-card__row"><span>কেজি প্রতি</span><b>${formatTaka(o.kgPrice)}</b></div>
+            <div class="product-card__row"><span>বাল্ক/লুজ (কেজি)</span><b>${formatTaka(o.bulkPrice)}</b></div>
+            <div class="product-card__row"><span>খুচরা মূল্য</span><b>${formatTaka(o.retailPrice)}</b></div>
+          </div>
+        `);
+      });
+    });
+  });
+  wrap.innerHTML = cards.join("");
+}
