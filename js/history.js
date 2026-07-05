@@ -60,11 +60,33 @@ function renderCatalog() {
   const cards = [];
   catalog.forEach(cat => {
     cat.varieties.forEach(v => {
-      v.options.forEach(o => {
+      if (v.options.length === 0) {
         cards.push(`
           <div class="card product-card">
             <p class="product-card__cat">${cat.category}</p>
-            <p class="product-card__name">${v.name} <span style="color:var(--ink-faint);font-weight:400;font-size:13px">(${o.qty}${o.unit})</span></p>
+            <p class="product-card__name">${v.name}</p>
+            <p style="font-size:12.5px;color:var(--ink-faint);margin:0">এখনো কোনো দাম/পরিমাণ যোগ করা হয়নি</p>
+          </div>
+        `);
+      }
+      v.options.forEach(o => {
+        const argStr = `'${cat.id}', '${escapeJs(v.name)}', ${o.qty}, '${o.unit}'`;
+        cards.push(`
+          <div class="card product-card">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start">
+              <div>
+                <p class="product-card__cat">${cat.category}</p>
+                <p class="product-card__name">${v.name} <span style="color:var(--ink-faint);font-weight:400;font-size:13px">(${o.qty}${o.unit})</span></p>
+              </div>
+              <div style="display:flex;gap:6px;flex-shrink:0">
+                <button class="icon-btn" title="এডিট করুন" onclick="openEditProductModal(${argStr})">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                </button>
+                <button class="icon-btn icon-btn--danger" title="মুছে ফেলুন" onclick="confirmDeleteProduct(${argStr})">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>
+                </button>
+              </div>
+            </div>
             <div class="product-card__row"><span>প্যাকেট প্রতি</span><b>${formatTaka(o.packetPrice)}</b></div>
             <div class="product-card__row"><span>কেজি প্রতি</span><b>${formatTaka(o.kgPrice)}</b></div>
             <div class="product-card__row"><span>বাল্ক/লুজ (কেজি)</span><b>${formatTaka(o.bulkPrice)}</b></div>
@@ -74,5 +96,9 @@ function renderCatalog() {
       });
     });
   });
-  wrap.innerHTML = cards.join("");
+  wrap.innerHTML = cards.join("") || `<div class="empty-state"><p>কোনো পণ্য নেই</p></div>`;
+}
+
+function escapeJs(str) {
+  return String(str).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 }

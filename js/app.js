@@ -107,6 +107,7 @@ function updateLivePriceHint() {
 
 function addOrderItem() {
   const { cat, variety, option } = getSelectedOption();
+  if (!option) { toast("এই জাতের জন্য এখনো কোনো পরিমাণ/দাম যোগ করা হয়নি — '+ Add' দিয়ে যোগ করুন"); return; }
   let result;
 
   if (saleMode === "packet") {
@@ -264,6 +265,150 @@ function addCustomProduct(e) {
 }
 
 /* ---------------------------------------------------------------------- */
+/* Edit / Delete product (catalog page)                                    */
+/* ---------------------------------------------------------------------- */
+
+let editingOption = null; // { catId, varietyName, qty, unit }
+
+function openEditProductModal(catId, varietyName, qty, unit) {
+  const cat = getFullCatalog().find(c => c.id === catId);
+  const variety = cat.varieties.find(v => v.name === varietyName);
+  const option = variety.options.find(o => o.qty === qty && o.unit === unit);
+  editingOption = { catId, varietyName, qty, unit };
+
+  const f = document.getElementById("editProductForm");
+  f.qty.value = option.qty;
+  f.unit.value = option.unit;
+  f.packetPrice.value = option.packetPrice;
+  f.kgPrice.value = option.kgPrice;
+  f.bulkPrice.value = option.bulkPrice;
+  f.retailPrice.value = option.retailPrice;
+  document.getElementById("editProductTitle").textContent = `${cat.category} — ${varietyName}`;
+  document.getElementById("editProductModal").classList.add("open");
+}
+
+function closeEditProductModal() {
+  document.getElementById("editProductModal").classList.remove("open");
+  editingOption = null;
+}
+
+function submitEditProduct(e) {
+  e.preventDefault();
+  if (!editingOption) return;
+  const f = e.target;
+  const { catId, varietyName, qty, unit } = editingOption;
+  setOptionOverride(catId, varietyName, qty, unit, {
+    qty: Number(f.qty.value),
+    unit: f.unit.value,
+    packetPrice: Number(f.packetPrice.value),
+    kgPrice: Number(f.kgPrice.value),
+    bulkPrice: Number(f.bulkPrice.value),
+    retailPrice: Number(f.retailPrice.value),
+  });
+  closeEditProductModal();
+  renderCatalog();
+  initSaleForm();
+  toast("পণ্যের তথ্য হালনাগাদ হয়েছে");
+}
+
+function confirmDeleteProduct(catId, varietyName, qty, unit) {
+  if (!confirm(`"${varietyName}" (${qty}${unit}) — এই এন্ট্রিটি মুছে ফেলতে চান?`)) return;
+  deleteOption(catId, varietyName, qty, unit);
+  renderCatalog();
+  initSaleForm();
+  toast("মুছে ফেলা হয়েছে");
+}
+
+/* ---------------------------------------------------------------------- */
+/* Quick add: new category / variety (from Sale Entry page)                */
+/* ---------------------------------------------------------------------- */
+
+function openQuickAddCategory() {
+  document.getElementById("quickAddModalTitle").textContent = "নতুন ক্যাটাগরি যোগ করুন";
+  document.getElementById("quickAddForm").dataset.mode = "category";
+  document.getElementById("quickAddCategoryField").style.display = "block";
+  document.getElementById("quickAddModal").classList.add("open");
+}
+
+function openQuickAddVariety() {
+  const catSel = document.getElementById("saleCategory");
+  if (!catSel.value) { toast("প্রথমে একটি ক্যাটাগরি নির্বাচন করুন"); return; }
+  document.getElementById("quickAddModalTitle").textContent = "নতুন জাতের নাম যোগ করুন";
+  document.getElementById("quickAddForm").dataset.mode = "variety";
+  document.getElementById("quickAddForm").dataset.catId = catSel.value;
+  document.getElementById("quickAddCategoryField").style.display = "none";
+  document.getElementById("quickAddModal").classList.add("open");
+}
+
+function closeQuickAddModal() {
+  document.getElementById("quickAddModal").classList.remove("open");
+  document.getElementById("quickAddForm").reset();
+}
+
+function submitQuickAdd(e) {
+  e.preventDefault();
+  const f = e.target;
+  const mode = f.dataset.mode;
+  const varietyName = f.varietyName.value.trim();
+  if (!varietyName) return;
+
+  let newCatId;
+  if (mode === "category") {
+    const categoryName = f.categoryName.value.trim();
+    if (!categoryName) { toast("ক্যাটাগরির নাম দিন"); return; }
+    newCatId = addCategoryOrVariety({ categoryName, varietyName });
+  } else {
+    newCatId = f.dataset.catId;
+    addCategoryOrVariety({ categoryId: newCatId, varietyName });
+  }
+
+  closeQuickAddModal();
+  initSaleForm();
+  document.getElementById("saleCategory").value = newCatId;
+  populateVarieties();
+  const varSel = document.getElementById("saleVariety");
+  [...varSel.options].forEach((opt, i) => { if (opt.textContent === varietyName) varSel.value = i; });
+  populateQtyChips();
+  toast("যোগ হয়েছে — এখন এর জন্য পরিমাণ/দাম যোগ করুন");
+}
+
+/* ---------------------------------------------------------------------- */
+/* Quick add: custom quantity option (from Sale Entry page)                */
+/* ---------------------------------------------------------------------- */
+
+function openQuickAddQty() {
+  if (!document.getElementById("saleVariety").value && document.getElementById("saleVariety").options.length === 0) {
+    toast("প্রথমে একটি জাত নির্বাচন করুন"); return;
+  }
+  document.getElementById("quickAddQtyModal").classList.add("open");
+}
+
+function closeQuickAddQtyModal() {
+  document.getElementById("quickAddQtyModal").classList.remove("open");
+  document.getElementById("quickAddQtyForm").reset();
+}
+
+function submitQuickAddQty(e) {
+  e.preventDefault();
+  const f = e.target;
+  const { cat, variety } = getSelectedOption();
+  const option = {
+    qty: Number(f.qty.value),
+    unit: f.unit.value,
+    packetPrice: Number(f.packetPrice.value),
+    kgPrice: Number(f.kgPrice.value),
+    bulkPrice: Number(f.bulkPrice.value),
+    retailPrice: Number(f.retailPrice.value),
+  };
+  addCustomOption(cat.id, variety.name, option);
+  closeQuickAddQtyModal();
+  populateQtyChips();
+  const wrap = document.getElementById("saleQtyChips");
+  selectQtyChip(wrap.children.length - 1);
+  toast("নতুন পরিমাণ যোগ হয়েছে");
+}
+
+/* ---------------------------------------------------------------------- */
 /* Init                                                                    */
 /* ---------------------------------------------------------------------- */
 
@@ -273,5 +418,8 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("paidAmount").addEventListener("input", updateGrandTotal);
   document.getElementById("bulkRateType").addEventListener("change", updateLivePriceHint);
   document.getElementById("customProductForm").addEventListener("submit", addCustomProduct);
+  document.getElementById("editProductForm").addEventListener("submit", submitEditProduct);
+  document.getElementById("quickAddForm").addEventListener("submit", submitQuickAdd);
+  document.getElementById("quickAddQtyForm").addEventListener("submit", submitQuickAddQty);
   showPage("sale");
 });

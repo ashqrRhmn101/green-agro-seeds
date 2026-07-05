@@ -3,7 +3,13 @@
    দুই ধরনের PDF:
    - Invoice : দামসহ, পূর্ণাঙ্গ বিল
    - Chalan  : শুধু পণ্য/পরিমাণ/ওজন + গ্রাহকের নাম-ঠিকানা, কোনো দাম থাকবে না
+   হেডারে কোম্পানির নাম/ঠিকানা মাঝ-বরাবর, এবং একটা স্বতন্ত্র ব্র্যান্ডেড ফুটার
+   (ডেভেলপার ক্রেডিট + LinkedIn) দেওয়া আছে — যাতে PDF-টা ইউনিক দেখায়।
+   ফিক্সড-উইথ কনটেইনার + explicit html2canvas width দিয়ে ক্যাপচার করা হয়,
+   যাতে ডান পাশের কোনো অংশ কেটে না যায়।
    ========================================================================== */
+
+const PDF_PAGE_WIDTH = 794; // ~210mm @ 96dpi — A4 width in px
 
 function itemTotalWeightKg(items) {
   return items.reduce((sum, it) => {
@@ -14,16 +20,22 @@ function itemTotalWeightKg(items) {
 
 function invoiceHeaderHTML(sale, subtitle) {
   return `
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #136831;padding-bottom:16px;margin-bottom:20px">
-      <div>
-        <div style="font-family:'Fraunces',serif;font-size:26px;font-weight:600;color:#136831">Green Agro Seeds</div>
-        <div style="font-size:12px;color:#56685C">All Kinds of Seeds Importer & Wholesaler</div>
-        <div style="font-size:11px;color:#8B9A8F;margin-top:2px">Hazi Kutir, Kalibari Road, Kotchandpur, Jhenaidah-7330 · +880 1717-146341</div>
+    <div style="text-align:center;border-bottom:3px solid #136831;padding-bottom:18px;margin-bottom:20px">
+      <div style="display:inline-flex;align-items:center;gap:10px;justify-content:center">
+        <div style="width:34px;height:34px;border-radius:50%;border:1.6px solid #136831;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#136831" stroke-width="1.6"><path d="M12 21c0-6 3-9 3-9s-6 0-6 6c0 1.5 1 3 3 3z"/><path d="M12 21c0-8-4-12-4-12s-3 6 0 9c1.5 1.5 4 3 4 3z"/><path d="M12 21c0-8 4-12 4-12s3 6 0 9c-1.5 1.5-4 3-4 3z"/><path d="M12 21V9"/></svg>
+        </div>
+        <div style="font-family:'Fraunces',serif;font-size:28px;font-weight:600;color:#136831">Green Agro Seeds</div>
       </div>
-      <div style="text-align:right">
+      <div style="font-size:12.5px;color:#56685C;margin-top:4px">All Kinds of Seeds Importer &amp; Wholesaler</div>
+      <div style="font-size:11.5px;color:#8B9A8F;margin-top:2px">Hazi Kutir, Kalibari Road, Kotchandpur, Jhenaidah-7330 &middot; +880 1717-146341</div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:12px;border-top:1px dashed #d8d4bd">
         <div style="font-size:15px;font-weight:700;color:#142B1B">${subtitle}</div>
-        <div style="font-size:12px;color:#56685C;margin-top:4px">নং: <b class="en">${sale.invoiceNo}</b></div>
-        <div style="font-size:12px;color:#56685C">তারিখ: ${new Date(sale.date).toLocaleDateString("bn-BD")}</div>
+        <div style="text-align:right;font-size:12px;color:#56685C">
+          <div>নং: <b class="en">${sale.invoiceNo}</b></div>
+          <div>তারিখ: ${new Date(sale.date).toLocaleDateString("bn-BD")}</div>
+        </div>
       </div>
     </div>
   `;
@@ -39,6 +51,18 @@ function customerBlockHTML(sale) {
   `;
 }
 
+function footerHTML() {
+  return `
+    <div style="margin-top:34px;border-top:2px solid #136831;padding-top:12px;display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:11px;color:#8B9A8F">ধন্যবাদান্তে — Green Agro Seeds</div>
+      <div style="font-size:10.5px;color:#8B9A8F;text-align:right">
+        Developed by <b style="color:#136831">Md. Lavib Uddin Ashik</b><br>
+        <span class="en">linkedin.com/in/lavib-uddin-ashik</span>
+      </div>
+    </div>
+  `;
+}
+
 function buildInvoiceHTML(sale) {
   const rows = sale.items.map((it, i) => `
     <tr>
@@ -50,31 +74,27 @@ function buildInvoiceHTML(sale) {
   `).join("");
 
   return `
-    <div style="font-family:'Hind Siliguri',sans-serif;padding:32px;background:#fff;color:#142B1B">
+    <div style="box-sizing:border-box;width:${PDF_PAGE_WIDTH}px;font-family:'Hind Siliguri',sans-serif;padding:36px;background:#fff;color:#142B1B">
       ${invoiceHeaderHTML(sale, "ইনভয়েস")}
       ${customerBlockHTML(sale)}
-      <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed">
         <thead>
           <tr style="background:#EAF3E4">
-            <th style="padding:8px;text-align:left">#</th>
+            <th style="padding:8px;text-align:left;width:32px">#</th>
             <th style="padding:8px;text-align:left">পণ্য</th>
             <th style="padding:8px;text-align:left">হিসাব</th>
-            <th style="padding:8px;text-align:right">টাকা</th>
+            <th style="padding:8px;text-align:right;width:110px">টাকা</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
       </table>
-      <div style="display:flex;justify-content:flex-end;margin-top:14px">
-        <table style="font-size:13px;min-width:240px">
-          <tr><td style="padding:4px 8px">সর্বমোট</td><td style="padding:4px 8px;text-align:right;font-weight:700" class="en">৳ ${sale.grandTotal.toLocaleString("bn-BD")}</td></tr>
-          <tr><td style="padding:4px 8px">পরিশোধিত</td><td style="padding:4px 8px;text-align:right" class="en">৳ ${sale.paidAmount.toLocaleString("bn-BD")}</td></tr>
-          <tr><td style="padding:4px 8px;color:${sale.dueAmount > 0 ? '#B5502E' : '#0d4e24'}">বাকি</td><td style="padding:4px 8px;text-align:right;font-weight:700;color:${sale.dueAmount > 0 ? '#B5502E' : '#0d4e24'}" class="en">৳ ${sale.dueAmount.toLocaleString("bn-BD")}</td></tr>
-        </table>
-      </div>
-      <div style="margin-top:36px;display:flex;justify-content:space-between;font-size:11px;color:#8B9A8F">
-        <div>ধন্যবাদান্তে — Green Agro Seeds</div>
-        <div>স্বাক্ষর: ______________</div>
-      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:14px">
+        <tr><td style="padding:4px 8px;text-align:right">সর্বমোট</td><td style="padding:4px 8px;text-align:right;font-weight:700;width:140px" class="en">৳ ${sale.grandTotal.toLocaleString("bn-BD")}</td></tr>
+        <tr><td style="padding:4px 8px;text-align:right">পরিশোধিত</td><td style="padding:4px 8px;text-align:right" class="en">৳ ${sale.paidAmount.toLocaleString("bn-BD")}</td></tr>
+        <tr><td style="padding:4px 8px;text-align:right;color:${sale.dueAmount > 0 ? '#B5502E' : '#0d4e24'}">বাকি</td><td style="padding:4px 8px;text-align:right;font-weight:700;color:${sale.dueAmount > 0 ? '#B5502E' : '#0d4e24'}" class="en">৳ ${sale.dueAmount.toLocaleString("bn-BD")}</td></tr>
+      </table>
+      <div style="margin-top:20px;font-size:11px;color:#8B9A8F">স্বাক্ষর: ______________</div>
+      ${footerHTML()}
     </div>
   `;
 }
@@ -95,30 +115,29 @@ function buildChalanHTML(sale) {
   }).join("");
 
   return `
-    <div style="font-family:'Hind Siliguri',sans-serif;padding:32px;background:#fff;color:#142B1B">
+    <div style="box-sizing:border-box;width:${PDF_PAGE_WIDTH}px;font-family:'Hind Siliguri',sans-serif;padding:36px;background:#fff;color:#142B1B">
       ${invoiceHeaderHTML(sale, "মালামাল চালান")}
       ${customerBlockHTML(sale)}
-      <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed">
         <thead>
           <tr style="background:#EAF3E4">
-            <th style="padding:8px;text-align:left">#</th>
+            <th style="padding:8px;text-align:left;width:32px">#</th>
             <th style="padding:8px;text-align:left">পণ্য</th>
             <th style="padding:8px;text-align:left">পরিমাণ</th>
-            <th style="padding:8px;text-align:right">ওজন</th>
+            <th style="padding:8px;text-align:right;width:110px">ওজন</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
       </table>
-      <div style="display:flex;justify-content:flex-end;margin-top:14px">
-        <table style="font-size:13px;min-width:220px">
-          <tr><td style="padding:4px 8px;font-weight:700">মোট ওজন</td><td style="padding:4px 8px;text-align:right;font-weight:700" class="en">${totalKg.toFixed(2)} কেজি</td></tr>
-        </table>
-      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:14px">
+        <tr><td style="padding:4px 8px;text-align:right;font-weight:700">মোট ওজন</td><td style="padding:4px 8px;text-align:right;font-weight:700;width:140px" class="en">${totalKg.toFixed(2)} কেজি</td></tr>
+      </table>
       <div style="margin-top:8px;font-size:11px;color:#8B9A8F">* এই চালানে কোনো মূল্য উল্লেখ নেই — শুধুমাত্র মালামাল বুঝিয়ে দেওয়ার প্রমাণপত্র</div>
-      <div style="margin-top:36px;display:flex;justify-content:space-between;font-size:11px;color:#8B9A8F">
+      <div style="margin-top:20px;display:flex;justify-content:space-between;font-size:11px;color:#8B9A8F">
         <div>প্রেরক স্বাক্ষর: ______________</div>
         <div>প্রাপক স্বাক্ষর: ______________</div>
       </div>
+      ${footerHTML()}
     </div>
   `;
 }
@@ -126,13 +145,21 @@ function buildChalanHTML(sale) {
 async function renderToPDF(html, filename) {
   const root = document.getElementById("print-root");
   root.innerHTML = html;
-  root.style.left = "0px";
-  root.style.position = "absolute";
-  root.style.top = "-99999px";
+  const target = root.firstElementChild;
 
-  const canvas = await html2canvas(root.firstElementChild, { scale: 1.5, useCORS: true });
-  const imgData = canvas.toDataURL("image/jpeg", 0.92);
+  // ফন্ট ও লেআউট পুরোপুরি বসতে একটু সময় দেওয়া হচ্ছে, তা না হলে ক্যাপচার অসম্পূর্ণ হতে পারে
+  if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch (e) {} }
+  await new Promise(r => setTimeout(r, 80));
 
+  const canvas = await html2canvas(target, {
+    scale: 2,
+    useCORS: true,
+    backgroundColor: "#ffffff",
+    width: PDF_PAGE_WIDTH,
+    windowWidth: PDF_PAGE_WIDTH,
+  });
+
+  const imgData = canvas.toDataURL("image/jpeg", 0.95);
   const pdfWidth = 210; // A4 mm
   const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
   const { jsPDF } = window.jspdf;
@@ -140,7 +167,6 @@ async function renderToPDF(html, filename) {
   pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, pdfHeight);
   pdf.save(filename);
 
-  root.style.left = "-9999px";
   root.innerHTML = "";
 }
 
