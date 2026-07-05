@@ -113,17 +113,95 @@ const PRODUCT_CATALOG = [
   },
 ];
 
-/* localStorage-এ ম্যানুয়ালি যোগ করা কাস্টম পণ্য/জাত এই key-তে সেভ হয়,
-   এবং অ্যাপ চালু হওয়ার সময় মূল ক্যাটালগের সাথে merge হয়ে যায়। */
-const CUSTOM_PRODUCTS_KEY = "gas_custom_products";
+/* ==========================================================================
+   localStorage layers on top of the base catalog:
+   - CUSTOM_PRODUCTS_KEY : সম্পূর্ণ নতুন ক্যাটাগরি/জাত (একটা অপশনসহ)
+   - CUSTOM_OPTIONS_KEY  : বিদ্যমান কোনো জাতে নতুন quantity-option যোগ
+   - OVERRIDES_KEY       : কোনো option-এর দাম/পরিমাণ এডিট করলে তার override
+   - DELETED_KEY         : মুছে ফেলা option-গুলোর key (soft delete)
+   সবগুলো getFullCatalog() একসাথে মার্জ করে চূড়ান্ত ক্যাটালগ তৈরি করে।
+   ========================================================================== */
 
-function getFullCatalog() {
-  const custom = JSON.parse(localStorage.getItem(CUSTOM_PRODUCTS_KEY) || "[]");
-  return [...PRODUCT_CATALOG, ...custom];
+const CUSTOM_PRODUCTS_KEY = "gas_custom_products";
+const CUSTOM_OPTIONS_KEY  = "gas_custom_options";
+const OVERRIDES_KEY       = "gas_overrides";
+const DELETED_KEY         = "gas_deleted";
+
+function readJSON(key, fallback) {
+  try { return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback)); }
+  catch { return fallback; }
+}
+function writeJSON(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
+
+function optionKey(catId, varietyName, qty, unit) {
+  return `${catId}::${varietyName}::${qty}${unit}`;
 }
 
 function saveCustomProduct(product) {
-  const custom = JSON.parse(localStorage.getItem(CUSTOM_PRODUCTS_KEY) || "[]");
+  const custom = readJSON(CUSTOM_PRODUCTS_KEY, []);
   custom.push(product);
-  localStorage.setItem(CUSTOM_PRODUCTS_KEY, JSON.stringify(custom));
+  writeJSON(CUSTOM_PRODUCTS_KEY, custom);
+}
+
+/* নতুন খালি ক্যাটাগরি বা বিদ্যমান ক্যাটাগরিতে নতুন জাত (দাম ছাড়া নাম-মাত্র) যোগ */
+function addCategoryOrVariety({ categoryId, categoryName, varietyName }) {
+  const custom = readJSON(CUSTOM_PRODUCTS_KEY, []);
+  if (categoryId) {
+    custom.push({ id: categoryId, category: null, varieties: [{ name: varietyName, options: [] }] });
+  } else {
+    const id = "cat-" + Date.now();
+    custom.push({ id, category: categoryName, varieties: [{ name: varietyName, options: [] }] });
+  }
+  writeJSON(CUSTOM_PRODUCTS_KEY, custom);
+  return categoryId || custom[custom.length - 1].id;
+}
+
+function addCustomOption(catId, varietyName, option) {
+  const all = readJSON(CUSTOM_OPTIONS_KEY, {});
+  const key = `${catId}::${varietyName}`;
+  if (!all[key]) all[key] = [];
+  all[key].push(option);
+  writeJSON(CUSTOM_OPTIONS_KEY, all);
+}
+
+function setOptionOverride(catId, varietyName, qty, unit, fields) {
+  const all = readJSON(OVERRIDES_KEY, {});
+  all[optionKey(catId, varietyName, qty, unit)] = fields;
+  writeJSON(OVERRIDES_KEY, all);
+}
+
+function deleteOption(catId, varietyName, qty, unit) {
+  const deleted = readJSON(DELETED_KEY, []);
+  const key = optionKey(catId, varietyName, qty, unit);
+  if (!deleted.includes(key)) deleted.push(key);
+  writeJSON(DELETED_KEY, deleted);
+}
+
+function getFullCatalog() {
+  const customProducts = readJSON(CUSTOM_PRODUCTS_KEY, []);
+  const customOptions = readJSON(CUSTOM_OPTIONS_KEY, {});
+  const overrides = readJSON(OVERRIDES_KEY, {});
+  const deleted = readJSON(DELETED_KEY, []);
+
+  // base + custom category/variety merge (একই id একাধিকবার থাকলে varieties একত্র হয়)
+  const byId = {};
+  [...PRODUCT_CATALOG, ...customProducts].forEach(c => {
+    if (!byId[c.id]) byId[c.id] = { id: c.id, category: c.category, varieties: [] };
+    if (c.category) byId[c.id].category = c.category;
+    c.varieties.forEach(v => byId[c.id].varieties.push({ name: v.name, options: [...v.options] }));
+  });
+
+  return Object.values(byId).map(cat => ({
+    ...cat,
+    varieties: cat.varieties.map(v => {
+      const extra = customOptions[`${cat.id}::${v.name}`] || [];
+      const allOptions = [...v.options, ...extra]
+        .map(o => {
+          const key = optionKey(cat.id, v.name, o.qty, o.unit);
+          return overrides[key] ? { ...o, ...overrides[key] } : o;
+        })
+        .filter(o => !deleted.includes(optionKey(cat.id, v.name, o.qty, o.unit)));
+      return { ...v, options: allOptions };
+    }),
+  }));
 }
