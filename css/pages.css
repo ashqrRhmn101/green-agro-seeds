@@ -134,4 +134,18 @@
    Invoice / Chalan hidden print template
    ========================================================================== */
 
-#print-root { position: fixed; left: -9999px; top: 0; width: 780px; }
+/* PDF জেনারেশনের সময় এই কনটেইনারটা পুরো স্ক্রিনজুড়ে (সাদা ব্যাকগ্রাউন্ডে) সাময়িকভাবে
+   সামনে আসে — html2canvas অফ-স্ক্রিন (left:-9999px) এলিমেন্ট ক্যাপচার করতে গিয়ে
+   প্রায়ই কনটেন্টের ডান/নিচের অংশ কেটে ফেলত, তাই এখন সত্যিকারের অন-স্ক্রিন পজিশনে
+   রেন্ডার করে ক্যাপচার করা হয়, যা সবসময় নির্ভরযোগ্য। */
+#print-root {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #fff;
+  overflow: auto;
+  justify-content: center;
+  padding: 24px 0;
+}
+#print-root.active { display: flex; }

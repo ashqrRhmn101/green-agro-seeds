@@ -77,7 +77,7 @@ function buildInvoiceHTML(sale) {
     <div style="box-sizing:border-box;width:${PDF_PAGE_WIDTH}px;font-family:'Hind Siliguri',sans-serif;padding:36px;background:#fff;color:#142B1B">
       ${invoiceHeaderHTML(sale, "ইনভয়েস")}
       ${customerBlockHTML(sale)}
-      <table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;word-break:break-word">
         <thead>
           <tr style="background:#EAF3E4">
             <th style="padding:8px;text-align:left;width:32px">#</th>
@@ -118,7 +118,7 @@ function buildChalanHTML(sale) {
     <div style="box-sizing:border-box;width:${PDF_PAGE_WIDTH}px;font-family:'Hind Siliguri',sans-serif;padding:36px;background:#fff;color:#142B1B">
       ${invoiceHeaderHTML(sale, "মালামাল চালান")}
       ${customerBlockHTML(sale)}
-      <table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;word-break:break-word">
         <thead>
           <tr style="background:#EAF3E4">
             <th style="padding:8px;text-align:left;width:32px">#</th>
@@ -145,28 +145,46 @@ function buildChalanHTML(sale) {
 async function renderToPDF(html, filename) {
   const root = document.getElementById("print-root");
   root.innerHTML = html;
+  root.classList.add("active");
   const target = root.firstElementChild;
 
-  // ফন্ট ও লেআউট পুরোপুরি বসতে একটু সময় দেওয়া হচ্ছে, তা না হলে ক্যাপচার অসম্পূর্ণ হতে পারে
+  // ফন্ট লোড ও লেআউট/পেইন্ট সম্পূর্ণ হওয়া পর্যন্ত নিশ্চিতভাবে অপেক্ষা করা হচ্ছে
   if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch (e) {} }
-  await new Promise(r => setTimeout(r, 80));
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
   const canvas = await html2canvas(target, {
     scale: 2,
     useCORS: true,
     backgroundColor: "#ffffff",
-    width: PDF_PAGE_WIDTH,
-    windowWidth: PDF_PAGE_WIDTH,
   });
 
   const imgData = canvas.toDataURL("image/jpeg", 0.95);
-  const pdfWidth = 210; // A4 mm
-  const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+  // আসল A4 পেজ সাইজ (210mm x 297mm) — কনটেন্ট এক পেজের বেশি লম্বা হলে একাধিক পেজে ভাগ হয়ে যাবে
   const { jsPDF } = window.jspdf;
-  const pdf = new jsPDF({ orientation: "p", unit: "mm", format: [pdfWidth, pdfHeight] });
-  pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, pdfHeight);
+  const pdf = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
+  const pageWidthMM = pdf.internal.pageSize.getWidth();
+  const pageHeightMM = pdf.internal.pageSize.getHeight();
+
+  const imgWidthMM = pageWidthMM;
+  const imgHeightMM = (canvas.height * imgWidthMM) / canvas.width;
+
+  let heightLeft = imgHeightMM;
+  let position = 0;
+
+  pdf.addImage(imgData, "JPEG", 0, position, imgWidthMM, imgHeightMM);
+  heightLeft -= pageHeightMM;
+
+  while (heightLeft > 0) {
+    position = heightLeft - imgHeightMM;
+    pdf.addPage();
+    pdf.addImage(imgData, "JPEG", 0, position, imgWidthMM, imgHeightMM);
+    heightLeft -= pageHeightMM;
+  }
+
   pdf.save(filename);
 
+  root.classList.remove("active");
   root.innerHTML = "";
 }
 
