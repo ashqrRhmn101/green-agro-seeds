@@ -29,6 +29,20 @@ function addLedgerEntry(phone, name, address, type, amount, note) {
   saveLedger(ledger);
 }
 
+/* গ্রাহকের প্রোফাইল তথ্য (নাম/ঠিকানা/জেলা/থানা/নোটস) আপডেট বা তৈরি করে —
+   entries অ্যারে অক্ষত থাকে, শুধু প্রোফাইল ফিল্ডগুলো merge হয় */
+function ensureCustomerProfile(phone, { name, address, district, thana, varietyNote } = {}) {
+  if (!phone) return;
+  const ledger = getLedger();
+  if (!ledger[phone]) ledger[phone] = { name: "", address: "", district: "", thana: "", varietyNote: "", entries: [] };
+  if (name) ledger[phone].name = name;
+  if (address) ledger[phone].address = address;
+  if (district) ledger[phone].district = district;
+  if (thana) ledger[phone].thana = thana;
+  if (varietyNote) ledger[phone].varietyNote = varietyNote;
+  saveLedger(ledger);
+}
+
 function getBalance(phone) {
   const ledger = getLedger();
   const cust = ledger[phone];
@@ -60,7 +74,8 @@ function renderCustomerList() {
     <div class="card customer-row" style="cursor:pointer" onclick="openCustomerDetail('${r.phone}')">
       <div>
         <div class="customer-row__name">${r.name || "নাম নেই"}</div>
-        <div class="customer-row__phone">${r.phone}</div>
+        <div class="customer-row__phone">${r.phone}${r.district ? ` · ${r.district}${r.thana ? ", " + r.thana : ""}` : ""}</div>
+        ${r.varietyNote ? `<span class="badge badge--gold" style="margin-top:4px">${r.varietyNote}</span>` : ""}
       </div>
       <div>${r.bal > 0 ? `<span class="badge badge--due">বাকি আছে</span>` : `<span class="badge badge--ok">ক্লিয়ার</span>`}</div>
       <div class="customer-row__balance ${r.bal > 0 ? 'due' : 'clear'}">${formatTaka(Math.abs(r.bal))}</div>
@@ -78,6 +93,9 @@ function openCustomerDetail(phone) {
 
   document.getElementById("custModalName").textContent = c.name || "নাম নেই";
   document.getElementById("custModalPhone").textContent = phone;
+  document.getElementById("custModalLocation").textContent =
+    [c.district, c.thana, c.address].filter(Boolean).join(" · ");
+  document.getElementById("custModalNote").value = c.varietyNote || "";
   document.getElementById("custModalBalance").textContent = formatTaka(Math.abs(bal));
   document.getElementById("custModalBalance").className = "en " + (bal > 0 ? "due" : "clear");
   document.getElementById("custModalBalanceLabel").textContent = bal > 0 ? "বাকি আছে" : (bal < 0 ? "অগ্রিম জমা" : "হিসাব ক্লিয়ার");
@@ -94,6 +112,13 @@ function openCustomerDetail(phone) {
   `).join("") || `<p style="color:var(--ink-muted);font-size:13px">কোনো এন্ট্রি নেই</p>`;
 
   document.getElementById("customerModal").classList.add("open");
+}
+
+function updateCustomerNote(value) {
+  if (!activeCustomerPhone) return;
+  ensureCustomerProfile(activeCustomerPhone, { varietyNote: value });
+  renderCustomerList();
+  toast("নোটস হালনাগাদ হয়েছে");
 }
 
 function closeCustomerModal() {
@@ -121,12 +146,13 @@ function addNewCustomerManually(e) {
   const f = e.target;
   const phone = normalizePhone(f.phone.value);
   const name = f.name.value.trim();
+  const district = f.district.value;
+  const thana = f.thana.value;
   const address = f.address.value.trim();
+  const varietyNote = f.note.value;
   const openingDue = Number(f.openingDue.value || 0);
   if (!phone || !name) { toast("নাম ও ফোন নম্বর দিন"); return; }
-  const ledger = getLedger();
-  if (!ledger[phone]) ledger[phone] = { name, address, entries: [] };
-  saveLedger(ledger);
+  ensureCustomerProfile(phone, { name, address, district, thana, varietyNote });
   if (openingDue > 0) addLedgerEntry(phone, name, address, "debit", openingDue, "প্রারম্ভিক বাকি (opening balance)");
   f.reset();
   closeNewCustomerModal();
