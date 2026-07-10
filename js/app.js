@@ -43,6 +43,31 @@ function initSaleForm() {
   document.getElementById("saleCategory").addEventListener("change", populateVarieties);
   document.getElementById("saleVariety").addEventListener("change", populateQtyChips);
   setSaleMode("packet");
+  populateDistrictSelect("custDistrict", "custThana");
+  populateDistrictSelect("newCustDistrict", "newCustThana");
+}
+
+/* ---------------------------------------------------------------------- */
+/* জেলা / থানা ড্রপডাউন (data/bangladesh.js থেকে)                          */
+/* ---------------------------------------------------------------------- */
+
+function populateDistrictSelect(districtSelectId, thanaSelectId) {
+  const distSel = document.getElementById(districtSelectId);
+  const thanaSel = document.getElementById(thanaSelectId);
+  if (!distSel || !thanaSel) return;
+  const districts = Object.keys(bangladeshData);
+  distSel.innerHTML = `<option value="">— জেলা নির্বাচন করুন —</option>` +
+    districts.map(d => `<option value="${d}">${d}</option>`).join("");
+  thanaSel.innerHTML = `<option value="">— প্রথমে জেলা নির্বাচন করুন —</option>`;
+  distSel.onchange = () => populateThanaSelect(distSel.value, thanaSelectId);
+}
+
+function populateThanaSelect(district, thanaSelectId) {
+  const thanaSel = document.getElementById(thanaSelectId);
+  const thanas = bangladeshData[district] || [];
+  thanaSel.innerHTML = thanas.length
+    ? `<option value="">— থানা নির্বাচন করুন —</option>` + thanas.map(t => `<option value="${t}">${t}</option>`).join("")
+    : `<option value="">— প্রথমে জেলা নির্বাচন করুন —</option>`;
 }
 
 function populateVarieties() {
@@ -160,8 +185,19 @@ function renderOrderItems() {
 }
 
 function updateGrandTotal() {
-  const total = currentOrderItems.reduce((s, it) => s + it.total, 0);
+  const itemsTotal = currentOrderItems.reduce((s, it) => s + it.total, 0);
+  const oldDue = Number(document.getElementById("oldDueAmount").value || 0);
+  const total = itemsTotal + oldDue;
   document.getElementById("grandTotal").textContent = formatTaka(total);
+
+  const hint = document.getElementById("oldDueHint");
+  if (oldDue > 0) {
+    hint.textContent = `(পণ্য ${formatTaka(itemsTotal)} + পুরাতন বকেয়া ${formatTaka(oldDue)})`;
+    hint.style.display = "block";
+  } else {
+    hint.style.display = "none";
+  }
+
   const paid = Number(document.getElementById("paidAmount").value || 0);
   const due = Math.max(total - paid, 0);
   document.getElementById("dueAmountView").textContent = formatTaka(due);
@@ -187,9 +223,14 @@ function saveSale() {
 
   const name = document.getElementById("custName").value.trim();
   const phone = document.getElementById("custPhone").value.trim();
+  const district = document.getElementById("custDistrict").value;
+  const thana = document.getElementById("custThana").value;
   const address = document.getElementById("custAddress").value.trim();
+  const varietyNote = document.getElementById("custNote").value;
   if (!name || !phone) { toast("গ্রাহকের নাম ও ফোন নম্বর আবশ্যক"); return null; }
 
+  const oldDue = Number(document.getElementById("oldDueAmount").value || 0);
+  const itemsTotal = currentOrderItems.reduce((s, it) => s + it.total, 0);
   const total = updateGrandTotal();
   const paid = Number(document.getElementById("paidAmount").value || 0);
   const due = Math.max(total - paid, 0);
@@ -199,8 +240,12 @@ function saveSale() {
     date: new Date().toISOString(),
     customerName: name,
     customerPhone: normalizePhone(phone),
+    customerDistrict: district,
+    customerThana: thana,
     customerAddress: address,
     items: currentOrderItems.map(it => ({ ...it })),
+    itemsTotal,
+    oldDueAmount: oldDue,
     grandTotal: total,
     paidAmount: paid,
     dueAmount: due,
@@ -210,8 +255,13 @@ function saveSale() {
   sales.push(sale);
   localStorage.setItem(LS_SALES, JSON.stringify(sales));
 
+  ensureCustomerProfile(sale.customerPhone, { name, address, district, thana, varietyNote });
+
   if (due > 0) {
-    addLedgerEntry(sale.customerPhone, name, address, "debit", due, `চালান ${sale.invoiceNo} — বাকি`);
+    const note = oldDue > 0
+      ? `চালান ${sale.invoiceNo} — বাকি (পুরাতন বকেয়া ${formatTaka(oldDue)} সহ)`
+      : `চালান ${sale.invoiceNo} — বাকি`;
+    addLedgerEntry(sale.customerPhone, name, address, "debit", due, note);
   }
 
   toast(`বিক্রয় সংরক্ষিত হয়েছে — ${sale.invoiceNo}`);
@@ -223,7 +273,11 @@ function resetSaleForm() {
   renderOrderItems();
   document.getElementById("custName").value = "";
   document.getElementById("custPhone").value = "";
+  document.getElementById("custDistrict").value = "";
+  populateThanaSelect("", "custThana");
   document.getElementById("custAddress").value = "";
+  document.getElementById("custNote").value = "";
+  document.getElementById("oldDueAmount").value = "";
   document.getElementById("paidAmount").value = "";
   updateGrandTotal();
 }
@@ -416,6 +470,7 @@ window.addEventListener("DOMContentLoaded", () => {
   initSaleForm();
   renderOrderItems();
   document.getElementById("paidAmount").addEventListener("input", updateGrandTotal);
+  document.getElementById("oldDueAmount").addEventListener("input", updateGrandTotal);
   document.getElementById("bulkRateType").addEventListener("change", updateLivePriceHint);
   document.getElementById("customProductForm").addEventListener("submit", addCustomProduct);
   document.getElementById("editProductForm").addEventListener("submit", submitEditProduct);
