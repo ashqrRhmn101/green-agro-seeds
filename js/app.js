@@ -55,6 +55,15 @@ function populateDistrictSelect(districtSelectId, thanaSelectId) {
   const distSel = document.getElementById(districtSelectId);
   const thanaSel = document.getElementById(thanaSelectId);
   if (!distSel || !thanaSel) return;
+
+  if (typeof bangladeshData === "undefined") {
+    // data/bangladesh.js লোড হয়নি — এই একটা কারণে যেন পুরো অ্যাপ ভেঙে না পড়ে
+    console.error("bangladeshData পাওয়া যায়নি — data/bangladesh.js ফাইলটা data/ ফোল্ডারে ঠিকভাবে আছে কিনা দেখুন।");
+    distSel.innerHTML = `<option value="">জেলার তালিকা লোড হয়নি</option>`;
+    thanaSel.innerHTML = `<option value="">—</option>`;
+    return;
+  }
+
   const districts = Object.keys(bangladeshData);
   distSel.innerHTML = `<option value="">— জেলা নির্বাচন করুন —</option>` +
     districts.map(d => `<option value="${d}">${d}</option>`).join("");
@@ -64,6 +73,7 @@ function populateDistrictSelect(districtSelectId, thanaSelectId) {
 
 function populateThanaSelect(district, thanaSelectId) {
   const thanaSel = document.getElementById(thanaSelectId);
+  if (typeof bangladeshData === "undefined") { thanaSel.innerHTML = `<option value="">—</option>`; return; }
   const thanas = bangladeshData[district] || [];
   thanaSel.innerHTML = thanas.length
     ? `<option value="">— থানা নির্বাচন করুন —</option>` + thanas.map(t => `<option value="${t}">${t}</option>`).join("")
@@ -467,14 +477,21 @@ function submitQuickAddQty(e) {
 /* ---------------------------------------------------------------------- */
 
 window.addEventListener("DOMContentLoaded", () => {
-  initSaleForm();
-  renderOrderItems();
-  document.getElementById("paidAmount").addEventListener("input", updateGrandTotal);
-  document.getElementById("oldDueAmount").addEventListener("input", updateGrandTotal);
-  document.getElementById("bulkRateType").addEventListener("change", updateLivePriceHint);
-  document.getElementById("customProductForm").addEventListener("submit", addCustomProduct);
-  document.getElementById("editProductForm").addEventListener("submit", submitEditProduct);
-  document.getElementById("quickAddForm").addEventListener("submit", submitQuickAdd);
-  document.getElementById("quickAddQtyForm").addEventListener("submit", submitQuickAddQty);
-  showPage("sale");
+  try {
+    initSaleForm();
+    renderOrderItems();
+    document.getElementById("paidAmount").addEventListener("input", updateGrandTotal);
+    document.getElementById("oldDueAmount").addEventListener("input", updateGrandTotal);
+    document.getElementById("bulkRateType").addEventListener("change", updateLivePriceHint);
+    document.getElementById("customProductForm").addEventListener("submit", addCustomProduct);
+    document.getElementById("editProductForm").addEventListener("submit", submitEditProduct);
+    document.getElementById("quickAddForm").addEventListener("submit", submitQuickAdd);
+    document.getElementById("quickAddQtyForm").addEventListener("submit", submitQuickAddQty);
+  } catch (err) {
+    // কোনো একটা ফিচার লোড হতে ব্যর্থ হলেও যেন পুরো পেজ ফাঁকা/সাদা হয়ে না যায় —
+    // অন্তত মূল পেজটা সবসময় দেখা যাবে, আর কনসোলে আসল সমস্যাটা লগ হবে।
+    console.error("Init error:", err);
+  } finally {
+    showPage("sale");
+  }
 });

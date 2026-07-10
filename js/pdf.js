@@ -153,6 +153,7 @@ async function renderToPDF(html, filename) {
   root.innerHTML = html;
   root.classList.add("active");
   const target = root.firstElementChild;
+  target.style.margin = "0 auto"; // শুধু ভিজ্যুয়াল সেন্টারিং, ক্যাপচারের সাইজে প্রভাব ফেলে না
 
   // ফন্ট লোড ও লেআউট/পেইন্ট সম্পূর্ণ হওয়া পর্যন্ত নিশ্চিতভাবে অপেক্ষা করা হচ্ছে
   if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch (e) {} }
