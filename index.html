@@ -125,9 +125,31 @@
             <label class="field-label">ফোন নম্বর</label>
             <input type="tel" id="custPhone" placeholder="01xxxxxxxxx">
           </div>
+          <div class="field-row">
+            <div class="field">
+              <label class="field-label">জেলা</label>
+              <select id="custDistrict"></select>
+            </div>
+            <div class="field">
+              <label class="field-label">থানা</label>
+              <select id="custThana"></select>
+            </div>
+          </div>
           <div class="field">
             <label class="field-label">ঠিকানা</label>
-            <input type="text" id="custAddress" placeholder="ঠিকানা (ঐচ্ছিক)">
+            <input type="text" id="custAddress" placeholder="বিস্তারিত ঠিকানা (ঐচ্ছিক)">
+          </div>
+          <div class="field">
+            <label class="field-label">নোটস</label>
+            <select id="custNote">
+              <option value="">— নির্বাচন করুন (ঐচ্ছিক) —</option>
+              <option value="উচ্চ ফলনশীল জাত">উচ্চ ফলনশীল জাত</option>
+              <option value="হাইব্রিড জাত">হাইব্রিড জাত</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field-label">পুরাতন বকেয়া (যদি থাকে)</label>
+            <input type="number" id="oldDueAmount" min="0" placeholder="0" onchange="updateGrandTotal()">
           </div>
           <div class="field" style="margin-bottom:0">
             <label class="field-label">পরিশোধিত টাকা</label>
@@ -143,6 +165,7 @@
         <div class="total-card">
           <p class="total-card__label">সর্বমোট বিল</p>
           <p class="total-card__value en" id="grandTotal">৳ 0</p>
+          <p id="oldDueHint" class="en" style="font-size:11.5px;opacity:.8;margin:6px 0 0;display:none"></p>
         </div>
 
         <button class="btn btn--primary btn--block" onclick="saveSaleAndDownload('invoice')">ইনভয়েস তৈরি করুন (দামসহ)</button>
@@ -230,6 +253,7 @@
       <div>
         <div id="custModalName" style="font-size:17px;font-weight:600"></div>
         <div id="custModalPhone" class="en" style="font-size:12.5px;color:var(--ink-muted)"></div>
+        <div id="custModalLocation" style="font-size:12.5px;color:var(--ink-muted);margin-top:2px"></div>
       </div>
       <button class="btn btn--ghost btn--sm" onclick="closeCustomerModal()">বন্ধ</button>
     </div>
@@ -237,6 +261,15 @@
     <div class="card" style="padding:14px 16px;margin-bottom:16px;background:var(--surface-sunken)">
       <p id="custModalBalanceLabel" style="margin:0 0 4px;font-size:12px;color:var(--ink-muted)"></p>
       <p id="custModalBalance" style="margin:0;font-size:24px;font-weight:700"></p>
+    </div>
+
+    <div class="field">
+      <label class="field-label">নোটস</label>
+      <select id="custModalNote" onchange="updateCustomerNote(this.value)">
+        <option value="">— নির্বাচন করুন —</option>
+        <option value="উচ্চ ফলনশীল জাত">উচ্চ ফলনশীল জাত</option>
+        <option value="হাইব্রিড জাত">হাইব্রিড জাত</option>
+      </select>
     </div>
 
     <form onsubmit="submitManualLedgerEntry(event)" style="margin-bottom:16px">
@@ -262,10 +295,22 @@
       <div style="font-size:17px;font-weight:600">নতুন গ্রাহক যোগ করুন</div>
       <button class="btn btn--ghost btn--sm" onclick="closeNewCustomerModal()">বন্ধ</button>
     </div>
-    <form onsubmit="addNewCustomerManually(event)">
+    <form id="newCustomerForm" onsubmit="addNewCustomerManually(event)">
       <div class="field"><label class="field-label">নাম</label><input type="text" name="name" required></div>
       <div class="field"><label class="field-label">ফোন নম্বর</label><input type="tel" name="phone" required></div>
+      <div class="field-row">
+        <div class="field"><label class="field-label">জেলা</label><select name="district" id="newCustDistrict"></select></div>
+        <div class="field"><label class="field-label">থানা</label><select name="thana" id="newCustThana"></select></div>
+      </div>
       <div class="field"><label class="field-label">ঠিকানা</label><input type="text" name="address"></div>
+      <div class="field">
+        <label class="field-label">নোটস</label>
+        <select name="note">
+          <option value="">— নির্বাচন করুন (ঐচ্ছিক) —</option>
+          <option value="উচ্চ ফলনশীল জাত">উচ্চ ফলনশীল জাত</option>
+          <option value="হাইব্রিড জাত">হাইব্রিড জাত</option>
+        </select>
+      </div>
       <div class="field"><label class="field-label">প্রারম্ভিক বাকি (ঐচ্ছিক)</label><input type="number" name="openingDue" min="0" placeholder="0"></div>
       <button class="btn btn--primary btn--block" type="submit">যোগ করুন</button>
     </form>
@@ -366,6 +411,7 @@
 .modal-box { width: 100%; max-width: 440px; max-height: 88vh; overflow-y: auto; padding: 22px; }
 </style>
 
+<script src="data/bangladesh.js"></script>
 <script src="data/products.js"></script>
 <script src="js/pricing.js"></script>
 <script src="js/customers.js"></script>
