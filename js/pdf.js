@@ -42,10 +42,12 @@ function invoiceHeaderHTML(sale, subtitle) {
 }
 
 function customerBlockHTML(sale) {
+  const location = [sale.customerDistrict, sale.customerThana].filter(Boolean).join(", ");
   return `
     <div style="background:#F2F1E6;border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:13px">
       <div><b>গ্রাহকের নাম:</b> ${sale.customerName}</div>
       <div><b>ফোন:</b> <span class="en">${sale.customerPhone}</span></div>
+      ${location ? `<div><b>জেলা/থানা:</b> ${location}</div>` : ""}
       ${sale.customerAddress ? `<div><b>ঠিকানা:</b> ${sale.customerAddress}</div>` : ""}
     </div>
   `;
@@ -89,6 +91,10 @@ function buildInvoiceHTML(sale) {
         <tbody>${rows}</tbody>
       </table>
       <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:14px">
+        ${sale.oldDueAmount > 0 ? `
+        <tr><td style="padding:4px 8px;text-align:right;color:#56685C">পণ্যের মূল্য</td><td style="padding:4px 8px;text-align:right;width:140px" class="en">৳ ${(sale.itemsTotal ?? (sale.grandTotal - sale.oldDueAmount)).toLocaleString("bn-BD")}</td></tr>
+        <tr><td style="padding:4px 8px;text-align:right;color:#56685C">পুরাতন বকেয়া</td><td style="padding:4px 8px;text-align:right;width:140px" class="en">৳ ${sale.oldDueAmount.toLocaleString("bn-BD")}</td></tr>
+        ` : ""}
         <tr><td style="padding:4px 8px;text-align:right">সর্বমোট</td><td style="padding:4px 8px;text-align:right;font-weight:700;width:140px" class="en">৳ ${sale.grandTotal.toLocaleString("bn-BD")}</td></tr>
         <tr><td style="padding:4px 8px;text-align:right">পরিশোধিত</td><td style="padding:4px 8px;text-align:right" class="en">৳ ${sale.paidAmount.toLocaleString("bn-BD")}</td></tr>
         <tr><td style="padding:4px 8px;text-align:right;color:${sale.dueAmount > 0 ? '#B5502E' : '#0d4e24'}">বাকি</td><td style="padding:4px 8px;text-align:right;font-weight:700;color:${sale.dueAmount > 0 ? '#B5502E' : '#0d4e24'}" class="en">৳ ${sale.dueAmount.toLocaleString("bn-BD")}</td></tr>
