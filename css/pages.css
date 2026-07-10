@@ -141,11 +141,10 @@
 #print-root {
   display: none;
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
   z-index: 9999;
   background: #fff;
-  overflow: auto;
-  justify-content: center;
-  padding: 24px 0;
 }
-#print-root.active { display: flex; }
+#print-root.active { display: block; }
