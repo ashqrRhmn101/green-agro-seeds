@@ -27,6 +27,7 @@ function addLedgerEntry(phone, name, address, type, amount, note) {
   ledger[phone].address = address || ledger[phone].address;
   ledger[phone].entries.push({ date: new Date().toISOString(), type, amount: Number(amount), note: note || "" });
   saveLedger(ledger);
+  pushLedgerEntryToSheet({ phone, type, amount, note });
 }
 
 /* গ্রাহকের প্রোফাইল তথ্য (নাম/ঠিকানা/জেলা/থানা/নোটস) আপডেট বা তৈরি করে —
@@ -41,6 +42,46 @@ function ensureCustomerProfile(phone, { name, address, district, thana, varietyN
   if (thana) ledger[phone].thana = thana;
   if (varietyNote) ledger[phone].varietyNote = varietyNote;
   saveLedger(ledger);
+  pushCustomerToSheet({
+    phone, name: ledger[phone].name, address: ledger[phone].address,
+    district: ledger[phone].district, thana: ledger[phone].thana, varietyNote: ledger[phone].varietyNote,
+  });
+}
+
+/* ---------------------------------------------------------------------- */
+/* Google Sheet সিঙ্ক                                                      */
+/* ---------------------------------------------------------------------- */
+
+async function pushLedgerEntryToSheet(entry) {
+  if (!isSheetConnected()) return;
+  try { await sheetAddLedgerEntry(entry); } catch (err) { console.error("Sheet sync (ledger entry) failed:", err); }
+}
+
+async function pushCustomerToSheet(customer) {
+  if (!isSheetConnected()) return;
+  try { await sheetUpsertCustomer(customer); } catch (err) { console.error("Sheet sync (customer) failed:", err); }
+}
+
+async function syncLedgerFromSheet() {
+  if (!isSheetConnected()) return;
+  try {
+    const [customers, entries] = await Promise.all([sheetFetchCustomers(), sheetFetchLedger()]);
+    const ledger = {};
+    (customers || []).forEach(c => {
+      const phone = normalizePhone(String(c.phone || "").replace(/^'/, ""));
+      if (!phone) return;
+      ledger[phone] = { name: c.name || "", address: c.address || "", district: c.district || "", thana: c.thana || "", varietyNote: c.varietyNote || "", entries: [] };
+    });
+    (entries || []).forEach(e => {
+      const phone = normalizePhone(String(e.phone || "").replace(/^'/, ""));
+      if (!phone) return;
+      if (!ledger[phone]) ledger[phone] = { name: "", address: "", district: "", thana: "", varietyNote: "", entries: [] };
+      ledger[phone].entries.push({ date: e.timestamp, type: e.type, amount: Number(e.amount), note: e.note || "" });
+    });
+    saveLedger(ledger);
+  } catch (err) {
+    console.error("Sheet থেকে গ্রাহক/লেজার লোড ব্যর্থ, লোকাল ক্যাশ ব্যবহার হচ্ছে:", err);
+  }
 }
 
 function getBalance(phone) {
