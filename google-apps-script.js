@@ -1,60 +1,189 @@
 /**
- * Green Agro Seeds — Google Apps Script (ভবিষ্যতের জন্য)
+ * Green Agro Seeds — Google Apps Script Backend
  * ==========================================================
- * এই কোডটি এখনই ওয়েবসাইটের সাথে যুক্ত নয়। এখন সবকিছু browser-এর
- * localStorage-এ সেভ হচ্ছে। ভবিষ্যতে ক্লাউড ব্যাকআপ / একাধিক ডিভাইস থেকে
- * অ্যাক্সেসের দরকার হলে এই স্ক্রিপ্টটি একটি Google Sheet-এর
- * Extensions → Apps Script এ পেস্ট করে "Deploy → Web app" হিসেবে
- * পাবলিশ করলে চালু হবে। তারপর js/app.js-এ SHEET_WEBAPP_URL বসিয়ে
- * saveSale() ফাংশনে একটা fetch/JSONP কল যোগ করলেই cloud sync চালু হবে।
+ * সেটআপ ধাপ:
+ * ১. sheets.new দিয়ে একটা নতুন খালি Google Sheet খুলুন, নাম দিন "Green Agro Seeds DB"
+ * ২. মেনু থেকে Extensions → Apps Script খুলুন
+ * ৩. যা কিছু আগে থেকে লেখা আছে (Code.gs-এ) সব মুছে এই পুরো ফাইলের কনটেন্ট পেস্ট করুন
+ * ৪. উপরের ফাংশন ড্রপডাউন থেকে "setup" সিলেক্ট করে ▶ Run বাটনে চাপুন
+ *    — প্রথমবার permission চাইবে, "Allow" করে দিন
+ *    — এটা "Products", "Customers", "Ledger", "Sales" নামে ৪টা ট্যাব ও হেডার রো বানিয়ে দেবে
+ * ৫. Deploy → New deployment → টাইপ হিসেবে "Web app" বেছে নিন
+ *    - Execute as: Me
+ *    - Who has access: Anyone
+ *    - Deploy চাপুন, যে URL পাবেন (....../exec দিয়ে শেষ হয়) সেটা কপি করুন
+ * ৬. ওয়েবসাইটে উপরে ডানদিকে ⚙️ আইকনে ক্লিক করে সেই URL পেস্ট করে সংরক্ষণ করুন
  *
- * Sheet-এ থাকবে দুইটা Tab:
- *  - "Sales"  : প্রতিটা বিক্রয়ের এক সারি
- *  - "Ledger" : প্রতিটা ডেবিট/ক্রেডিট এন্ট্রির এক সারি (append-only)
+ * ভবিষ্যতে কোড আপডেট করলে: Deploy → Manage deployments → পেন্সিল আইকন → নতুন
+ * ভার্সন সিলেক্ট করে আবার Deploy করতে হবে (নতুন URL তৈরি হবে না, পুরনোটাই থাকবে)।
  */
+
+const SHEETS = {
+  PRODUCTS: "Products",
+  CUSTOMERS: "Customers",
+  LEDGER: "Ledger",
+  SALES: "Sales",
+};
+
+const HEADERS = {
+  Products:  ["id", "category", "variety", "qty", "unit", "packetPrice", "kgPrice", "bulkPrice", "retailPrice"],
+  Customers: ["phone", "name", "address", "district", "thana", "varietyNote"],
+  Ledger:    ["timestamp", "phone", "type", "amount", "note"],
+  Sales:     ["invoiceNo", "date", "customerName", "customerPhone", "customerDistrict", "customerThana", "customerAddress", "itemsJSON", "itemsTotal", "oldDueAmount", "grandTotal", "paidAmount", "dueAmount"],
+};
+
+/* এই ফাংশনটা প্রথমবার ম্যানুয়ালি Run করতে হবে — ৪টা ট্যাব ও হেডার তৈরি করে দেয় */
+function setup() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  Object.keys(HEADERS).forEach(name => {
+    let sheet = ss.getSheetByName(name);
+    if (!sheet) sheet = ss.insertSheet(name);
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow(HEADERS[name]);
+      sheet.setFrozenRows(1);
+      sheet.getRange(1, 1, 1, HEADERS[name].length).setFontWeight("bold").setBackground("#EAF3E4");
+    }
+  });
+  SpreadsheetApp.getUi().alert("সেটআপ সম্পন্ন হয়েছে — Products, Customers, Ledger, Sales ট্যাব তৈরি হয়ে গেছে। এখন Deploy → New deployment করুন।");
+}
 
 function doGet(e) {
   const action = e.parameter.action;
+  let result;
+  try {
+    switch (action) {
+      case "fetchProducts": result = getRows_(SHEETS.PRODUCTS); break;
+      case "addProduct":    result = addProduct_(e.parameter); break;
+      case "updateProduct": result = updateProduct_(e.parameter); break;
+      case "deleteProduct": result = deleteProduct_(e.parameter); break;
 
-  if (action === "fetchSales") return jsonp_(e, getSheetRows_("Sales"));
-  if (action === "fetchLedger") return jsonp_(e, getSheetRows_("Ledger"));
+      case "fetchCustomers": result = getRows_(SHEETS.CUSTOMERS); break;
+      case "upsertCustomer": result = upsertCustomer_(e.parameter); break;
 
-  if (action === "saveSale") return jsonp_(e, saveSaleRow_(e.parameter));
-  if (action === "saveLedgerEntry") return jsonp_(e, saveLedgerRow_(e.parameter));
+      case "fetchLedger":    result = getRows_(SHEETS.LEDGER); break;
+      case "addLedgerEntry": result = addLedgerEntry_(e.parameter); break;
 
-  return jsonp_(e, { error: "unknown action" });
+      case "fetchSales":  result = getRows_(SHEETS.SALES); break;
+      case "saveSale":    result = saveSale_(e.parameter); break;
+      case "updateSale":  result = updateSale_(e.parameter); break;
+
+      default: result = { error: "unknown action: " + action };
+    }
+  } catch (err) {
+    result = { error: String(err) };
+  }
+  return jsonp_(e, result);
 }
 
-function getSheetRows_(tabName) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(tabName);
+function getSheet_(name) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
+  if (!sheet) throw new Error(name + " ট্যাব পাওয়া যায়নি — প্রথমে setup() ফাংশনটা Run করুন।");
+  return sheet;
+}
+
+function getRows_(sheetName) {
+  const sheet = getSheet_(sheetName);
   const data = sheet.getDataRange().getValues();
   const headers = data.shift();
-  return data.map(row => {
-    const obj = {};
-    headers.forEach((h, i) => (obj[h] = row[i]));
-    return obj;
+  return data
+    .filter(row => row.some(cell => cell !== "" && cell !== null))
+    .map(row => {
+      const obj = {};
+      headers.forEach((h, i) => (obj[h] = row[i]));
+      return obj;
+    });
+}
+
+function findRowIndexByValue_(sheet, colName, value) {
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const colIdx = headers.indexOf(colName);
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][colIdx]).replace(/^'/, "") === String(value).replace(/^'/, "")) return i + 1; // 1-based sheet row
+  }
+  return -1;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Products                                                                */
+/* ---------------------------------------------------------------------- */
+function addProduct_(p) {
+  const sheet = getSheet_(SHEETS.PRODUCTS);
+  const id = p.id || "p" + new Date().getTime();
+  sheet.appendRow([id, p.category, p.variety, p.qty, p.unit, p.packetPrice, p.kgPrice, p.bulkPrice, p.retailPrice]);
+  return { ok: true, id: id };
+}
+function updateProduct_(p) {
+  const sheet = getSheet_(SHEETS.PRODUCTS);
+  const rowIdx = findRowIndexByValue_(sheet, "id", p.id);
+  if (rowIdx === -1) return { error: "product not found: " + p.id };
+  sheet.getRange(rowIdx, 1, 1, 9).setValues([[p.id, p.category, p.variety, p.qty, p.unit, p.packetPrice, p.kgPrice, p.bulkPrice, p.retailPrice]]);
+  return { ok: true };
+}
+function deleteProduct_(p) {
+  const sheet = getSheet_(SHEETS.PRODUCTS);
+  const rowIdx = findRowIndexByValue_(sheet, "id", p.id);
+  if (rowIdx === -1) return { error: "product not found: " + p.id };
+  sheet.deleteRow(rowIdx);
+  return { ok: true };
+}
+
+/* ---------------------------------------------------------------------- */
+/* Customers                                                                */
+/* ---------------------------------------------------------------------- */
+function upsertCustomer_(c) {
+  const sheet = getSheet_(SHEETS.CUSTOMERS);
+  const phoneNorm = normalizePhone_(c.phone);
+  const rowIdx = findRowIndexByValue_(sheet, "phone", phoneNorm);
+  const rowData = ["'" + phoneNorm, c.name || "", c.address || "", c.district || "", c.thana || "", c.varietyNote || ""];
+  if (rowIdx === -1) {
+    sheet.appendRow(rowData);
+  } else {
+    sheet.getRange(rowIdx, 1, 1, 6).setValues([rowData]);
+  }
+  return { ok: true };
+}
+
+/* ---------------------------------------------------------------------- */
+/* Ledger (বাকি-পাওনা)                                                     */
+/* ---------------------------------------------------------------------- */
+function addLedgerEntry_(p) {
+  const sheet = getSheet_(SHEETS.LEDGER);
+  sheet.appendRow([new Date(), "'" + normalizePhone_(p.phone), p.type, p.amount, p.note || ""]);
+  return { ok: true };
+}
+
+/* ---------------------------------------------------------------------- */
+/* Sales (বিক্রয়ের ইতিহাস)                                                 */
+/* ---------------------------------------------------------------------- */
+function saveSale_(p) {
+  const sheet = getSheet_(SHEETS.SALES);
+  sheet.appendRow([
+    p.invoiceNo, p.date, p.customerName, "'" + normalizePhone_(p.customerPhone),
+    p.customerDistrict || "", p.customerThana || "", p.customerAddress || "",
+    p.itemsJSON, p.itemsTotal, p.oldDueAmount, p.grandTotal, p.paidAmount, p.dueAmount,
+  ]);
+  return { ok: true };
+}
+function updateSale_(p) {
+  const sheet = getSheet_(SHEETS.SALES);
+  const rowIdx = findRowIndexByValue_(sheet, "invoiceNo", p.invoiceNo);
+  if (rowIdx === -1) return { error: "invoice not found: " + p.invoiceNo };
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  ["paidAmount", "dueAmount", "grandTotal", "itemsTotal", "oldDueAmount"].forEach(field => {
+    if (p[field] !== undefined) {
+      const colIdx = headers.indexOf(field) + 1;
+      if (colIdx > 0) sheet.getRange(rowIdx, colIdx).setValue(p[field]);
+    }
   });
-}
-
-function saveSaleRow_(p) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Sales");
-  sheet.appendRow([
-    p.invoiceNo, new Date(), p.customerName, "'" + normalizePhone_(p.customerPhone),
-    p.customerAddress, p.itemsJSON, p.grandTotal, p.paidAmount, p.dueAmount,
-  ]);
   return { ok: true };
 }
 
-function saveLedgerRow_(p) {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Ledger");
-  sheet.appendRow([
-    new Date(), "'" + normalizePhone_(p.phone), p.name, p.type, p.amount, p.note,
-  ]);
-  return { ok: true };
-}
-
+/* ---------------------------------------------------------------------- */
+/* Helpers                                                                  */
+/* ---------------------------------------------------------------------- */
 function normalizePhone_(phone) {
-  let p = String(phone).trim().replace(/[\s\-]/g, "");
+  let p = String(phone).trim().replace(/^'/, "").replace(/[\s\-]/g, "");
   p = p.replace(/^\+?88/, "");
   if (p.length === 10 && p.charAt(0) === "1") p = "0" + p;
   return p;
