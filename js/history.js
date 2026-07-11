@@ -37,6 +37,7 @@ function renderHistory() {
               <td>
                 <button class="btn btn--ghost btn--sm" onclick="downloadInvoicePDF('${s.invoiceNo}')">ইনভয়েস</button>
                 <button class="btn btn--ghost btn--sm" onclick="downloadChalanPDF('${s.invoiceNo}')">চালান</button>
+                ${s.dueAmount > 0 ? `<button class="btn btn--primary btn--sm" onclick="openUpdatePaymentModal('${s.invoiceNo}')">পরিশোধ আপডেট</button>` : ""}
               </td>
             </tr>
           `).join("")}
@@ -70,7 +71,7 @@ function renderCatalog() {
         `);
       }
       v.options.forEach(o => {
-        const argStr = `'${cat.id}', '${escapeJs(v.name)}', ${o.qty}, '${o.unit}'`;
+        const argStr = `'${escapeJs(o._rowId)}'`;
         cards.push(`
           <div class="card product-card">
             <div style="display:flex;justify-content:space-between;align-items:flex-start">
