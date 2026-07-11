@@ -32,6 +32,11 @@
     <button data-page="ledger" onclick="showPage('ledger')">বাকি/পাওনা</button>
     <button data-page="history" onclick="showPage('history')">বিক্রয় ইতিহাস</button>
   </nav>
+
+  <button class="sync-btn" onclick="openSettingsModal()" title="Google Sheet সংযোগ">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    <span id="syncStatusDot"></span>
+  </button>
 </header>
 
 <nav class="brandbar__nav--mobile">
@@ -39,6 +44,7 @@
   <button data-page="catalog" onclick="showPage('catalog')">পণ্য</button>
   <button data-page="ledger" onclick="showPage('ledger')">বাকি</button>
   <button data-page="history" onclick="showPage('history')">ইতিহাস</button>
+  <button onclick="openSettingsModal()">সংযোগ</button>
 </nav>
 
 <div class="shell">
@@ -395,6 +401,47 @@
   </div>
 </div>
 
+<!-- Google Sheet settings/sync -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal-box card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div style="font-size:17px;font-weight:600">Google Sheet সংযোগ</div>
+      <button class="btn btn--ghost btn--sm" onclick="closeSettingsModal()">বন্ধ</button>
+    </div>
+    <p style="font-size:13px;color:var(--ink-muted);margin:0 0 14px">
+      Apps Script Web App ডিপ্লয় করার পর যে URL পাবেন সেটা এখানে বসান। সংযুক্ত থাকলে পণ্য, গ্রাহকের বাকি ও বিক্রয়ের ইতিহাস স্বয়ংক্রিয়ভাবে Google Sheet-এ সংরক্ষিত হবে — ল্যাপটপ/ডেস্কটপ বদলালেও ডেটা হারাবে না।
+    </p>
+    <p id="syncStatusText" style="font-size:13px;font-weight:600;margin:0 0 14px"></p>
+    <form id="webAppUrlForm">
+      <div class="field">
+        <label class="field-label">Web App URL</label>
+        <input type="text" id="webAppUrlInput" placeholder="https://script.google.com/macros/s/xxxxx/exec">
+      </div>
+      <button class="btn btn--primary btn--block" type="submit">সংরক্ষণ করুন ও সিঙ্ক করুন</button>
+    </form>
+    <button class="btn btn--ghost btn--block" style="margin-top:8px" onclick="manualSyncNow()">এখনই আবার সিঙ্ক করুন</button>
+  </div>
+</div>
+
+<!-- Update payment on an existing invoice -->
+<div class="modal-overlay" id="updatePaymentModal">
+  <div class="modal-box card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div style="font-size:17px;font-weight:600">পরিশোধ আপডেট করুন</div>
+      <button class="btn btn--ghost btn--sm" onclick="closeUpdatePaymentModal()">বন্ধ</button>
+    </div>
+    <p style="font-size:13px;color:var(--ink-muted);margin:0 0 4px">চালান নং: <b class="en" id="updatePaymentInvoiceNo"></b></p>
+    <p style="font-size:13px;color:var(--rust);margin:0 0 14px">বর্তমান বাকি: <b class="en" id="updatePaymentCurrentDue"></b></p>
+    <form id="updatePaymentForm">
+      <div class="field">
+        <label class="field-label">নতুন পরিশোধের পরিমাণ</label>
+        <input type="number" name="amount" min="1" required>
+      </div>
+      <button class="btn btn--primary btn--block" type="submit">আপডেট করে নতুন ইনভয়েস ডাউনলোড করুন</button>
+    </form>
+  </div>
+</div>
+
 <div id="toast"></div>
 <div id="print-root"></div>
 
@@ -411,7 +458,7 @@
 .modal-box { width: 100%; max-width: 440px; max-height: 88vh; overflow-y: auto; padding: 22px; }
 </style>
 
-<script src="data/bangladesh.js"></script>
+<script src="js/sheets-sync.js"></script>
 <script src="data/products.js"></script>
 <script src="js/pricing.js"></script>
 <script src="js/customers.js"></script>

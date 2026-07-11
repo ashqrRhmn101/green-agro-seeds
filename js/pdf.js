@@ -122,7 +122,7 @@ function buildChalanHTML(sale) {
 
   return `
     <div style="box-sizing:border-box;width:${PDF_PAGE_WIDTH}px;font-family:'Hind Siliguri',sans-serif;padding:36px;background:#fff;color:#142B1B">
-      ${invoiceHeaderHTML(sale, "মালামাল চালান")}
+      ${invoiceHeaderHTML(sale, "বীজ চালান")}
       ${customerBlockHTML(sale)}
       <table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;word-break:break-word">
         <thead>
