@@ -341,8 +341,166 @@ function saveSale() {
     addLedgerEntry(sale.customerPhone, name, address, "debit", due, note);
   }
 
+  pushSaleToSheet(sale);
+
   toast(`বিক্রয় সংরক্ষিত হয়েছে — ${sale.invoiceNo}`);
   return sale;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Google Sheet সিঙ্ক — বিক্রয়ের ইতিহাস                                    */
+/* ---------------------------------------------------------------------- */
+
+async function pushSaleToSheet(sale) {
+  if (!isSheetConnected()) return;
+  try { await sheetSaveSale(sale); } catch (err) { console.error("Sheet sync (save sale) failed:", err); }
+}
+
+async function syncSalesFromSheet() {
+  if (!isSheetConnected()) return;
+  try {
+    const rows = await sheetFetchSales();
+    if (Array.isArray(rows)) {
+      const sales = rows.map(r => ({
+        invoiceNo: r.invoiceNo,
+        date: r.date,
+        customerName: r.customerName,
+        customerPhone: normalizePhone(String(r.customerPhone || "").replace(/^'/, "")),
+        customerDistrict: r.customerDistrict || "",
+        customerThana: r.customerThana || "",
+        customerAddress: r.customerAddress || "",
+        items: JSON.parse(r.itemsJSON || "[]"),
+        itemsTotal: Number(r.itemsTotal || 0),
+        oldDueAmount: Number(r.oldDueAmount || 0),
+        grandTotal: Number(r.grandTotal || 0),
+        paidAmount: Number(r.paidAmount || 0),
+        dueAmount: Number(r.dueAmount || 0),
+      }));
+      localStorage.setItem(LS_SALES, JSON.stringify(sales));
+
+      // Sheet-এর সর্বোচ্চ চালান নম্বরের সাথে লোকাল কাউন্টার মিলিয়ে নেওয়া, যাতে ডুপ্লিকেট নম্বর তৈরি না হয়
+      let maxNum = 0;
+      sales.forEach(s => {
+        const m = /GAS-(\d+)/.exec(s.invoiceNo || "");
+        if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+      });
+      if (maxNum > Number(localStorage.getItem(LS_INVOICE_COUNTER) || "0")) {
+        localStorage.setItem(LS_INVOICE_COUNTER, String(maxNum));
+      }
+    }
+  } catch (err) {
+    console.error("Sheet থেকে বিক্রয় ইতিহাস লোড ব্যর্থ, লোকাল ক্যাশ ব্যবহার হচ্ছে:", err);
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+/* পুরনো চালানে নতুন পরিশোধ আপডেট করা                                       */
+/* ---------------------------------------------------------------------- */
+
+function openUpdatePaymentModal(invoiceNo) {
+  const sale = findSaleByInvoice(invoiceNo);
+  if (!sale) { toast("চালান খুঁজে পাওয়া যায়নি"); return; }
+  document.getElementById("updatePaymentInvoiceNo").textContent = sale.invoiceNo;
+  document.getElementById("updatePaymentCurrentDue").textContent = formatTaka(sale.dueAmount);
+  document.getElementById("updatePaymentForm").dataset.invoiceNo = invoiceNo;
+  document.getElementById("updatePaymentModal").classList.add("open");
+}
+
+function closeUpdatePaymentModal() {
+  document.getElementById("updatePaymentModal").classList.remove("open");
+  document.getElementById("updatePaymentForm").reset();
+}
+
+function submitUpdatePayment(e) {
+  e.preventDefault();
+  const f = e.target;
+  const invoiceNo = f.dataset.invoiceNo;
+  const newPayment = Number(f.amount.value || 0);
+  if (newPayment <= 0) return;
+
+  const sales = getAllSales();
+  const sale = sales.find(s => s.invoiceNo === invoiceNo);
+  if (!sale) { toast("চালান খুঁজে পাওয়া যায়নি"); return; }
+
+  sale.paidAmount = Number(sale.paidAmount || 0) + newPayment;
+  sale.dueAmount = Math.max(sale.grandTotal - sale.paidAmount, 0);
+  localStorage.setItem(LS_SALES, JSON.stringify(sales));
+
+  addLedgerEntry(sale.customerPhone, sale.customerName, sale.customerAddress, "credit", newPayment, `চালান ${sale.invoiceNo} — পরিশোধ`);
+
+  if (isSheetConnected()) {
+    sheetUpdateSale({
+      invoiceNo: sale.invoiceNo, paidAmount: sale.paidAmount, dueAmount: sale.dueAmount, grandTotal: sale.grandTotal,
+    }).catch(err => console.error("Sheet sync (update sale) failed:", err));
+  }
+
+  closeUpdatePaymentModal();
+  renderHistory();
+  toast(`পরিশোধ আপডেট হয়েছে — ${sale.invoiceNo}`);
+  downloadInvoicePDF(sale.invoiceNo);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Google Sheet সংযোগ সেটিংস                                               */
+/* ---------------------------------------------------------------------- */
+
+function openSettingsModal() {
+  document.getElementById("webAppUrlInput").value = getWebAppUrl();
+  updateSyncStatusUI();
+  document.getElementById("settingsModal").classList.add("open");
+}
+function closeSettingsModal() { document.getElementById("settingsModal").classList.remove("open"); }
+
+function updateSyncStatusUI() {
+  const dot = document.getElementById("syncStatusDot");
+  const text = document.getElementById("syncStatusText");
+  const connected = isSheetConnected();
+  if (dot) dot.classList.toggle("connected", connected);
+  if (text) {
+    text.textContent = connected ? "🟢 Google Sheet সংযুক্ত আছে" : "⚪ শুধু লোকাল — Sheet সংযুক্ত নেই";
+    text.style.color = connected ? "var(--green-2)" : "var(--ink-muted)";
+  }
+}
+
+async function fullSyncFromSheet() {
+  await Promise.all([syncProductsFromSheet(), syncLedgerFromSheet(), syncSalesFromSheet()]);
+}
+
+async function refreshAllViews() {
+  initSaleForm();
+  renderCatalog();
+  renderCustomerList();
+  renderHistory();
+}
+
+async function saveWebAppUrl(e) {
+  e.preventDefault();
+  const url = document.getElementById("webAppUrlInput").value.trim();
+  if (!url) { toast("Web App URL দিন"); return; }
+  setWebAppUrl(url);
+  toast("সংরক্ষিত হয়েছে — সিঙ্ক করা হচ্ছে...");
+  try {
+    await fullSyncFromSheet();
+    toast("Google Sheet-এর সাথে সিঙ্ক সম্পন্ন হয়েছে");
+  } catch (err) {
+    toast("সিঙ্ক ব্যর্থ হয়েছে — URL চেক করুন");
+    console.error(err);
+  }
+  updateSyncStatusUI();
+  refreshAllViews();
+}
+
+async function manualSyncNow() {
+  if (!isSheetConnected()) { toast("প্রথমে Web App URL সংরক্ষণ করুন"); return; }
+  toast("সিঙ্ক করা হচ্ছে...");
+  try {
+    await fullSyncFromSheet();
+    toast("সিঙ্ক সম্পন্ন হয়েছে");
+  } catch (err) {
+    toast("সিঙ্ক ব্যর্থ হয়েছে");
+    console.error(err);
+  }
+  refreshAllViews();
 }
 
 function resetSaleForm() {
@@ -401,11 +559,11 @@ function addCustomProduct(e) {
 
 let editingOption = null; // { catId, varietyName, qty, unit }
 
-function openEditProductModal(catId, varietyName, qty, unit) {
-  const cat = getFullCatalog().find(c => c.id === catId);
-  const variety = cat.varieties.find(v => v.name === varietyName);
-  const option = variety.options.find(o => o.qty === qty && o.unit === unit);
-  editingOption = { catId, varietyName, qty, unit };
+function openEditProductModal(rowId) {
+  const flat = readJSON(PRODUCTS_CACHE_KEY, []);
+  const option = flat.find(o => o.id === rowId);
+  if (!option) { toast("পণ্যটি খুঁজে পাওয়া যায়নি"); return; }
+  editingOption = { rowId };
 
   const f = document.getElementById("editProductForm");
   f.qty.value = option.qty;
@@ -414,7 +572,7 @@ function openEditProductModal(catId, varietyName, qty, unit) {
   f.kgPrice.value = option.kgPrice;
   f.bulkPrice.value = option.bulkPrice;
   f.retailPrice.value = option.retailPrice;
-  document.getElementById("editProductTitle").textContent = `${cat.category} — ${varietyName}`;
+  document.getElementById("editProductTitle").textContent = `${option.category} — ${option.variety}`;
   document.getElementById("editProductModal").classList.add("open");
 }
 
@@ -427,8 +585,7 @@ function submitEditProduct(e) {
   e.preventDefault();
   if (!editingOption) return;
   const f = e.target;
-  const { catId, varietyName, qty, unit } = editingOption;
-  setOptionOverride(catId, varietyName, qty, unit, {
+  updateProductRow(editingOption.rowId, {
     qty: Number(f.qty.value),
     unit: f.unit.value,
     packetPrice: Number(f.packetPrice.value),
@@ -442,9 +599,9 @@ function submitEditProduct(e) {
   toast("পণ্যের তথ্য হালনাগাদ হয়েছে");
 }
 
-function confirmDeleteProduct(catId, varietyName, qty, unit) {
-  if (!confirm(`"${varietyName}" (${qty}${unit}) — এই এন্ট্রিটি মুছে ফেলতে চান?`)) return;
-  deleteOption(catId, varietyName, qty, unit);
+function confirmDeleteProduct(rowId) {
+  if (!confirm(`এই পণ্যের এন্ট্রিটি মুছে ফেলতে চান?`)) return;
+  deleteProductRow(rowId);
   renderCatalog();
   initSaleForm();
   toast("মুছে ফেলা হয়েছে");
@@ -554,11 +711,20 @@ window.addEventListener("DOMContentLoaded", () => {
     document.getElementById("editProductForm").addEventListener("submit", submitEditProduct);
     document.getElementById("quickAddForm").addEventListener("submit", submitQuickAdd);
     document.getElementById("quickAddQtyForm").addEventListener("submit", submitQuickAddQty);
+    document.getElementById("webAppUrlForm").addEventListener("submit", saveWebAppUrl);
+    document.getElementById("updatePaymentForm").addEventListener("submit", submitUpdatePayment);
+    updateSyncStatusUI();
   } catch (err) {
     // কোনো একটা ফিচার লোড হতে ব্যর্থ হলেও যেন পুরো পেজ ফাঁকা/সাদা হয়ে না যায় —
     // অন্তত মূল পেজটা সবসময় দেখা যাবে, আর কনসোলে আসল সমস্যাটা লগ হবে।
     console.error("Init error:", err);
   } finally {
     showPage("sale");
+  }
+
+  // Sheet সংযুক্ত থাকলে ব্যাকগ্রাউন্ডে সিঙ্ক করে ভিউগুলো রিফ্রেশ করা হয় —
+  // এটা পেজ লোডকে আটকায় না, তাই প্রথমে instant লোকাল ক্যাশ দিয়েই পেজ দেখা যায়
+  if (isSheetConnected()) {
+    fullSyncFromSheet().then(refreshAllViews).catch(err => console.error("Initial sync failed:", err));
   }
 });
