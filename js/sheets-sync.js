@@ -62,6 +62,16 @@ function sheetAddLedgerEntry(e) { return jsonpRequest({ action: "addLedgerEntry"
 /* ---------------------------------------------------------------------- */
 function sheetFetchSales() { return jsonpRequest({ action: "fetchSales" }); }
 
+/* Sheet-এ "itemsJSON" কলামটা raw JSON হওয়ায় পড়া কঠিন — তাই পাশাপাশি
+   "itemsSummary" নামে একটা সহজে-পড়া-যায় এমন টেক্সট কলামও পাঠানো হয়
+   (PDF-এর "পণ্য | হিসাব | টাকা" ফরম্যাট অনুসরণ করে)। itemsJSON টা রেখে
+   দেওয়া হয়েছে যাতে অন্য ডিভাইস থেকে সিঙ্ক করার সময় অ্যাপ আবার সেটা পার্স করতে পারে। */
+function buildItemsSummaryText(items) {
+  return (items || [])
+    .map((it, i) => `${i + 1}) ${it.category} — ${it.variety} | ${it.breakdown} | ৳${it.total}`)
+    .join("\n");
+}
+
 function sheetSaveSale(sale) {
   return jsonpRequest({
     action: "saveSale",
@@ -72,6 +82,7 @@ function sheetSaveSale(sale) {
     customerDistrict: sale.customerDistrict || "",
     customerThana: sale.customerThana || "",
     customerAddress: sale.customerAddress || "",
+    itemsSummary: buildItemsSummaryText(sale.items),
     itemsJSON: JSON.stringify(sale.items),
     itemsTotal: sale.itemsTotal,
     oldDueAmount: sale.oldDueAmount,
