@@ -2,8 +2,26 @@
    Sales History + Product Catalog rendering
    ========================================================================== */
 
+let historySearchQuery = "";
+
+function onHistorySearchInput(value) {
+  historySearchQuery = value;
+  renderHistory();
+}
+
+function filterSales(sales) {
+  const q = historySearchQuery.trim().toLowerCase();
+  if (!q) return sales;
+  return sales.filter(s =>
+    (s.invoiceNo || "").toLowerCase().includes(q) ||
+    (s.customerName || "").toLowerCase().includes(q) ||
+    (s.customerPhone || "").toLowerCase().includes(q)
+  );
+}
+
 function renderHistory() {
-  const sales = getAllSales().slice().reverse();
+  const allSales = getAllSales().slice().reverse();
+  const sales = filterSales(allSales);
   const totalRevenue = sales.reduce((s, x) => s + x.grandTotal, 0);
   const totalDue = sales.reduce((s, x) => s + x.dueAmount, 0);
 
@@ -14,7 +32,7 @@ function renderHistory() {
 
   const wrap = document.getElementById("historyTableWrap");
   if (sales.length === 0) {
-    wrap.innerHTML = `<div class="empty-state"><p>এখনো কোনো বিক্রয় রেকর্ড নেই</p></div>`;
+    wrap.innerHTML = `<div class="empty-state"><p>${historySearchQuery ? "সার্চের সাথে মিলে এমন কিছু পাওয়া যায়নি" : "এখনো কোনো বিক্রয় রেকর্ড নেই"}</p></div>`;
     return;
   }
 
@@ -45,6 +63,28 @@ function renderHistory() {
       </table>
     </div>
   `;
+}
+
+function exportHistoryCSV() {
+  const sales = filterSales(getAllSales().slice().reverse());
+  const headers = ["চালান নং", "তারিখ", "গ্রাহকের নাম", "ফোন", "জেলা", "থানা", "ঠিকানা", "পণ্যের বিবরণ", "সর্বমোট", "পরিশোধিত", "বাকি"];
+  const rows = sales.map(s => [
+    s.invoiceNo, new Date(s.date).toLocaleDateString("bn-BD"), s.customerName, s.customerPhone,
+    s.customerDistrict || "", s.customerThana || "", s.customerAddress || "",
+    (s.items || []).map(it => `${it.category} ${it.variety} (${it.breakdown})`).join(" | "),
+    s.grandTotal, s.paidAmount, s.dueAmount,
+  ]);
+  downloadCSV(`sales-history-${Date.now()}.csv`, [headers, ...rows]);
+}
+
+function exportHistoryPDF() {
+  const sales = filterSales(getAllSales().slice().reverse());
+  const headers = ["চালান", "তারিখ", "গ্রাহক", "ফোন", "সর্বমোট", "পরিশোধিত", "বাকি"];
+  const rows = sales.map(s => [
+    s.invoiceNo, new Date(s.date).toLocaleDateString("bn-BD"), s.customerName, s.customerPhone,
+    formatTaka(s.grandTotal), formatTaka(s.paidAmount), formatTaka(s.dueAmount),
+  ]);
+  downloadTablePDF("বিক্রয় ইতিহাস রিপোর্ট", headers, rows, `sales-history-${Date.now()}.pdf`);
 }
 
 function findSaleByInvoice(invoiceNo) {

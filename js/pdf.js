@@ -122,7 +122,7 @@ function buildChalanHTML(sale) {
 
   return `
     <div style="box-sizing:border-box;width:${PDF_PAGE_WIDTH}px;font-family:'Hind Siliguri',sans-serif;padding:36px;background:#fff;color:#142B1B">
-      ${invoiceHeaderHTML(sale, "বীজ চালান")}
+      ${invoiceHeaderHTML(sale, "মালামাল চালান")}
       ${customerBlockHTML(sale)}
       <table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;word-break:break-word">
         <thead>
@@ -193,6 +193,65 @@ async function renderToPDF(html, filename) {
 
   root.classList.remove("active");
   root.innerHTML = "";
+}
+
+/* ---------------------------------------------------------------------- */
+/* সাধারণ টেবিল-রিপোর্ট PDF (সার্চ/এক্সপোর্ট বাটনের জন্য)                    */
+/* ---------------------------------------------------------------------- */
+
+function reportHeaderHTML(title) {
+  return `
+    <div style="text-align:center;border-bottom:3px solid #136831;padding-bottom:18px;margin-bottom:20px">
+      <div style="display:inline-flex;align-items:center;gap:10px;justify-content:center">
+        <div style="width:34px;height:34px;border-radius:50%;border:1.6px solid #136831;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#136831" stroke-width="1.6"><path d="M12 21c0-6 3-9 3-9s-6 0-6 6c0 1.5 1 3 3 3z"/><path d="M12 21c0-8-4-12-4-12s-3 6 0 9c1.5 1.5 4 3 4 3z"/><path d="M12 21c0-8 4-12 4-12s3 6 0 9c-1.5 1.5-4 3-4 3z"/><path d="M12 21V9"/></svg>
+        </div>
+        <div style="font-family:'Fraunces',serif;font-size:26px;font-weight:600;color:#136831">Green Agro Seeds</div>
+      </div>
+      <div style="font-size:13px;font-weight:700;color:#142B1B;margin-top:6px">${title}</div>
+      <div style="font-size:11px;color:#8B9A8F;margin-top:2px">তৈরি হয়েছে: ${new Date().toLocaleDateString("bn-BD")}</div>
+    </div>
+  `;
+}
+
+function buildTableReportHTML(title, headers, rows) {
+  const headHtml = headers.map(h => `<th style="padding:8px;text-align:left;background:#EAF3E4">${h}</th>`).join("");
+  const rowsHtml = rows.map(r => `<tr>${r.map(c => `<td style="padding:8px;border-bottom:1px solid #eee">${c ?? ""}</td>`).join("")}</tr>`).join("")
+    || `<tr><td style="padding:8px;color:#8B9A8F" colspan="${headers.length}">কোনো ডেটা পাওয়া যায়নি</td></tr>`;
+  return `
+    <div style="box-sizing:border-box;width:${PDF_PAGE_WIDTH}px;font-family:'Hind Siliguri',sans-serif;padding:36px;background:#fff;color:#142B1B">
+      ${reportHeaderHTML(title)}
+      <table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;word-break:break-word">
+        <thead><tr>${headHtml}</tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+      ${footerHTML()}
+    </div>
+  `;
+}
+
+function downloadTablePDF(title, headers, rows, filename) {
+  renderToPDF(buildTableReportHTML(title, headers, rows), filename);
+}
+
+/* ---------------------------------------------------------------------- */
+/* CSV এক্সপোর্ট (সাধারণ ইউটিলিটি)                                          */
+/* ---------------------------------------------------------------------- */
+
+function downloadCSV(filename, rows) {
+  const csv = rows.map(r => r.map(cell => {
+    const s = String(cell ?? "");
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }).join(",")).join("\r\n");
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" }); // BOM যোগ করা হয়েছে যাতে Excel-এ বাংলা ঠিকভাবে দেখায়
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 function downloadInvoicePDF(invoiceNo) {
