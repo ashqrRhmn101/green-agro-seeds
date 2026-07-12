@@ -228,6 +228,13 @@
       </div>
       <button class="btn btn--primary" onclick="openNewCustomerModal()">+ নতুন গ্রাহক</button>
     </div>
+
+    <div class="search-export-row">
+      <input type="text" class="search-input" placeholder="ফোন, নাম বা চালান নম্বর দিয়ে খুঁজুন..." oninput="onLedgerSearchInput(this.value)">
+      <button class="btn btn--ghost btn--sm" onclick="exportLedgerCSV()">CSV এক্সপোর্ট</button>
+      <button class="btn btn--ghost btn--sm" onclick="exportLedgerPDF()">PDF ডাউনলোড</button>
+    </div>
+
     <div class="customer-list" id="customerList"></div>
   </section>
 
@@ -238,6 +245,12 @@
         <h1>বিক্রয় ইতিহাস</h1>
         <p>এখন পর্যন্ত সব বিক্রয়ের সারাংশ</p>
       </div>
+    </div>
+
+    <div class="search-export-row">
+      <input type="text" class="search-input" placeholder="ফোন, নাম বা চালান নম্বর দিয়ে খুঁজুন..." oninput="onHistorySearchInput(this.value)">
+      <button class="btn btn--ghost btn--sm" onclick="exportHistoryCSV()">CSV এক্সপোর্ট</button>
+      <button class="btn btn--ghost btn--sm" onclick="exportHistoryPDF()">PDF ডাউনলোড</button>
     </div>
 
     <div class="history-stats">

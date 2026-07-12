@@ -118,6 +118,29 @@
 
 .filter-row { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
 
+.search-export-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.search-export-row .search-input {
+  flex: 1;
+  min-width: 220px;
+  padding: 10px 14px;
+  border: 1.4px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 14px;
+}
+.search-export-row .search-input:focus {
+  outline: none;
+  border-color: var(--green-3);
+  box-shadow: 0 0 0 3px var(--green-tint);
+}
+
 /* ==========================================================================
    Empty states
    ========================================================================== */
