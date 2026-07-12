@@ -235,6 +235,7 @@ function addOrderItem() {
 
   renderOrderItems();
   updateGrandTotal();
+  toast("Order যুক্ত হয়েছে");
 }
 
 function removeOrderItem(idx) {
@@ -559,6 +560,38 @@ function normalizePhone(phone) {
 }
 
 /* ---------------------------------------------------------------------- */
+/* রিপিট গ্রাহক অটো-ফিল — ফোন নম্বর লিখলে আগের তথ্য (নাম/ঠিকানা/জেলা-থানা/নোটস)
+   স্বয়ংক্রিয়ভাবে ফিল হয়ে যায়। ledger ক্যাশ Google Sheet থেকে সিঙ্ক করা থাকে,
+   তাই এটা মূলত Sheet-এরই তথ্য দেখায় — প্রতিটা কি-প্রেসে আলাদা করে Sheet-এ
+   কল করার দরকার নেই। */
+let autofillDebounceTimer;
+
+function initCustomerAutofill() {
+  const phoneInput = document.getElementById("custPhone");
+  phoneInput.addEventListener("input", () => {
+    clearTimeout(autofillDebounceTimer);
+    autofillDebounceTimer = setTimeout(() => tryAutofillCustomer(phoneInput.value), 500);
+  });
+}
+
+function tryAutofillCustomer(rawPhone) {
+  const phone = normalizePhone(rawPhone);
+  if (phone.length < 11) return;
+  const c = getLedger()[phone];
+  if (!c) return;
+
+  document.getElementById("custName").value = c.name || "";
+  document.getElementById("custAddress").value = c.address || "";
+  document.getElementById("custNote").value = c.varietyNote || "";
+  if (c.district) {
+    document.getElementById("custDistrict").value = c.district;
+    populateThanaSelect(c.district, "custThana");
+    if (c.thana) document.getElementById("custThana").value = c.thana;
+  }
+  toast(`পুরনো গ্রাহক পাওয়া গেছে — ${c.name || phone}`);
+}
+
+/* ---------------------------------------------------------------------- */
 /* Manual product add (catalog page)                                      */
 /* ---------------------------------------------------------------------- */
 
@@ -738,6 +771,7 @@ window.addEventListener("DOMContentLoaded", () => {
   try {
     initSaleForm();
     renderOrderItems();
+    initCustomerAutofill();
     document.getElementById("paidAmount").addEventListener("input", updateGrandTotal);
     document.getElementById("oldDueAmount").addEventListener("input", updateGrandTotal);
     document.getElementById("bulkRateType").addEventListener("change", updateLivePriceHint);

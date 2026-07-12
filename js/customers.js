@@ -95,21 +95,49 @@ function getBalance(phone) {
 /* Rendering                                                               */
 /* ---------------------------------------------------------------------- */
 
-function renderCustomerList() {
-  const ledger = getLedger();
-  const wrap = document.getElementById("customerList");
-  const phones = Object.keys(ledger);
+let ledgerSearchQuery = "";
 
-  if (phones.length === 0) {
+function onLedgerSearchInput(value) {
+  ledgerSearchQuery = value;
+  renderCustomerList();
+}
+
+function getAllCustomerRows() {
+  const ledger = getLedger();
+  return Object.keys(ledger).map(phone => {
+    const c = ledger[phone];
+    return { phone, ...c, bal: getBalance(phone) };
+  });
+}
+
+function filterCustomerRows(rows) {
+  const q = ledgerSearchQuery.trim().toLowerCase();
+  if (!q) return rows;
+
+  // চালান নম্বর দিয়ে সার্চ করলে সেই চালানের গ্রাহককে খুঁজে দেখানো হয়
+  if (/^gas-/i.test(q) || (typeof getAllSales === "function" && (q.includes("gas") || /^\d{4,}$/.test(q)))) {
+    const sale = typeof getAllSales === "function" ? getAllSales().find(s => (s.invoiceNo || "").toLowerCase().includes(q)) : null;
+    if (sale) return rows.filter(r => r.phone === sale.customerPhone);
+  }
+
+  return rows.filter(r => (r.phone || "").toLowerCase().includes(q) || (r.name || "").toLowerCase().includes(q));
+}
+
+function renderCustomerList() {
+  const wrap = document.getElementById("customerList");
+  const allRows = getAllCustomerRows();
+
+  if (allRows.length === 0) {
     wrap.innerHTML = `<div class="empty-state"><p>এখনো কোনো গ্রাহকের হিসাব নেই — বিক্রয় করলে বা ম্যানুয়াল এন্ট্রি দিলে এখানে দেখা যাবে</p></div>`;
     return;
   }
 
-  const rows = phones.map(phone => {
-    const c = ledger[phone];
-    const bal = getBalance(phone);
-    return { phone, ...c, bal };
-  }).sort((a, b) => b.bal - a.bal);
+  const rows = filterCustomerRows(allRows).sort((a, b) => b.bal - a.bal);
+
+  if (rows.length === 0) {
+    wrap.innerHTML = `<div class="empty-state"><p>সার্চের সাথে মিলে এমন কোনো গ্রাহক পাওয়া যায়নি</p></div>`;
+    return;
+  }
 
   wrap.innerHTML = rows.map(r => `
     <div class="card customer-row" style="cursor:pointer" onclick="openCustomerDetail('${r.phone}')">
@@ -122,6 +150,23 @@ function renderCustomerList() {
       <div class="customer-row__balance ${r.bal > 0 ? 'due' : 'clear'}">${formatTaka(Math.abs(r.bal))}</div>
     </div>
   `).join("");
+}
+
+function exportLedgerCSV() {
+  const rows = filterCustomerRows(getAllCustomerRows()).sort((a, b) => b.bal - a.bal);
+  const headers = ["ফোন", "নাম", "ঠিকানা", "জেলা", "থানা", "নোটস", "ব্যালেন্স (টাকা)", "অবস্থা"];
+  const csvRows = rows.map(r => [r.phone, r.name || "", r.address || "", r.district || "", r.thana || "", r.varietyNote || "", Math.abs(r.bal), r.bal > 0 ? "বাকি আছে" : "ক্লিয়ার"]);
+  downloadCSV(`customers-ledger-${Date.now()}.csv`, [headers, ...csvRows]);
+}
+
+function exportLedgerPDF() {
+  const rows = filterCustomerRows(getAllCustomerRows()).sort((a, b) => b.bal - a.bal);
+  const headers = ["নাম", "ফোন", "জেলা/থানা", "নোটস", "ব্যালেন্স"];
+  const pdfRows = rows.map(r => [
+    r.name || "-", r.phone, [r.district, r.thana].filter(Boolean).join(", ") || "-", r.varietyNote || "-",
+    (r.bal > 0 ? "বাকি " : r.bal < 0 ? "অগ্রিম " : "") + formatTaka(Math.abs(r.bal)),
+  ]);
+  downloadTablePDF("গ্রাহকের বাকি/পাওনা রিপোর্ট", headers, pdfRows, `customers-ledger-${Date.now()}.pdf`);
 }
 
 let activeCustomerPhone = null;
