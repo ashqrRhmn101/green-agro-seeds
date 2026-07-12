@@ -176,6 +176,12 @@ function submitManualLedgerEntry(e) {
   const ledger = getLedger();
   const c = ledger[activeCustomerPhone];
   addLedgerEntry(activeCustomerPhone, c.name, c.address, type, amount, note || (type === "debit" ? "নতুন বাকি" : "পরিশোধ গ্রহণ"));
+
+  if (type === "credit") {
+    // এই পেমেন্টটা গ্রাহকের বকেয়া চালান(গুলো)-তে বণ্টন করে বিক্রয় ইতিহাস ও Sheet-ও আপডেট করে দেয়
+    applyPaymentToCustomerSales(activeCustomerPhone, amount);
+  }
+
   f.reset();
   openCustomerDetail(activeCustomerPhone);
   renderCustomerList();
