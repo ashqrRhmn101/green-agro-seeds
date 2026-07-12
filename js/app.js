@@ -356,6 +356,40 @@ async function pushSaleToSheet(sale) {
   try { await sheetSaveSale(sale); } catch (err) { console.error("Sheet sync (save sale) failed:", err); }
 }
 
+/* "বাকি/পাওনা" পেজ থেকে কোনো গ্রাহকের নামে সরাসরি একটা পেমেন্ট (credit) এন্ট্রি
+   যোগ করলে সেটা কোনো নির্দিষ্ট চালানের সাথে যুক্ত থাকে না — শুধু ledger ব্যালান্স
+   কমে যেত, কিন্তু বিক্রয় ইতিহাস/Sheet-এ কোনো চালানের বাকি কমত না। এই ফাংশনটা
+   সেই টাকাটা গ্রাহকের বকেয়া চালানগুলোতে (পুরনোটা আগে) বণ্টন করে দেয়, যাতে
+   ledger, বিক্রয় ইতিহাস আর Google Sheet — তিন জায়গাতেই হিসাব মিলে যায়। */
+function applyPaymentToCustomerSales(phone, amount) {
+  let remaining = amount;
+  const allSales = getAllSales();
+  const dueSales = allSales
+    .filter(s => s.customerPhone === phone && s.dueAmount > 0)
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  if (dueSales.length === 0) return; // এই গ্রাহকের নামে কোনো বকেয়া চালান নেই (হয়তো পুরনো/আলাদা বকেয়া)
+
+  dueSales.forEach(s => {
+    if (remaining <= 0) return;
+    const pay = Math.min(remaining, s.dueAmount);
+    const target = allSales.find(x => x.invoiceNo === s.invoiceNo);
+    target.paidAmount = Number(target.paidAmount || 0) + pay;
+    target.dueAmount = Math.max(target.grandTotal - target.paidAmount, 0);
+    remaining -= pay;
+
+    if (isSheetConnected()) {
+      sheetUpdateSale({
+        invoiceNo: target.invoiceNo, paidAmount: target.paidAmount,
+        dueAmount: target.dueAmount, grandTotal: target.grandTotal,
+      }).catch(err => console.error("Sheet sync (ledger payment → sale) failed:", err));
+    }
+  });
+
+  localStorage.setItem(LS_SALES, JSON.stringify(allSales));
+  if (typeof renderHistory === "function") renderHistory();
+}
+
 async function syncSalesFromSheet() {
   if (!isSheetConnected()) return;
   try {
