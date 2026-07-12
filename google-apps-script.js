@@ -16,6 +16,10 @@
  *
  * ভবিষ্যতে কোড আপডেট করলে: Deploy → Manage deployments → পেন্সিল আইকন → নতুন
  * ভার্সন সিলেক্ট করে আবার Deploy করতে হবে (নতুন URL তৈরি হবে না, পুরনোটাই থাকবে)।
+ *
+ * ইতিমধ্যে Sheet ব্যবহার করছেন এবং নতুন কোনো কলাম (যেমন itemsSummary) যোগ হয়েছে?
+ * ফাংশন ড্রপডাউন থেকে "addMissingColumns" সিলেক্ট করে একবার Run করুন —
+ * পুরনো ডেটা/কলাম অক্ষত রেখেই যা বাকি আছে তা যোগ করে দেবে।
  */
 
 const SHEETS = {
@@ -29,7 +33,7 @@ const HEADERS = {
   Products:  ["id", "category", "variety", "qty", "unit", "packetPrice", "kgPrice", "bulkPrice", "retailPrice"],
   Customers: ["phone", "name", "address", "district", "thana", "varietyNote"],
   Ledger:    ["timestamp", "phone", "type", "amount", "note"],
-  Sales:     ["invoiceNo", "date", "customerName", "customerPhone", "customerDistrict", "customerThana", "customerAddress", "itemsJSON", "itemsTotal", "oldDueAmount", "grandTotal", "paidAmount", "dueAmount"],
+  Sales:     ["invoiceNo", "date", "customerName", "customerPhone", "customerDistrict", "customerThana", "customerAddress", "itemsSummary", "itemsJSON", "itemsTotal", "oldDueAmount", "grandTotal", "paidAmount", "dueAmount"],
 };
 
 /* এই ফাংশনটা প্রথমবার ম্যানুয়ালি Run করতে হবে — ৪টা ট্যাব ও হেডার তৈরি করে দেয় */
@@ -45,6 +49,25 @@ function setup() {
     }
   });
   SpreadsheetApp.getUi().alert("সেটআপ সম্পন্ন হয়েছে — Products, Customers, Ledger, Sales ট্যাব তৈরি হয়ে গেছে। এখন Deploy → New deployment করুন।");
+}
+
+/* আগে থেকে Sheet ব্যবহার করছেন এমন কারো জন্য — নতুন কোনো কলাম (যেমন itemsSummary)
+   যোগ হলে এই ফাংশনটা একবার Run করলেই বিদ্যমান ট্যাবগুলোতে সেই কলাম যোগ হয়ে যাবে,
+   পুরনো ডেটা/কলামের অবস্থান একদম অক্ষত থাকবে (শেষে যোগ হয়)। */
+function addMissingColumns() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  Object.keys(HEADERS).forEach(name => {
+    const sheet = ss.getSheetByName(name);
+    if (!sheet) return;
+    const lastCol = sheet.getLastColumn();
+    const existing = lastCol > 0 ? sheet.getRange(1, 1, 1, lastCol).getValues()[0] : [];
+    HEADERS[name].forEach(h => {
+      if (existing.indexOf(h) === -1) {
+        sheet.getRange(1, sheet.getLastColumn() + 1).setValue(h);
+      }
+    });
+  });
+  SpreadsheetApp.getUi().alert("প্রয়োজনীয় নতুন কলাম যোগ করা হয়েছে (আগের ডেটা অক্ষত আছে)।");
 }
 
 function doGet(e) {
@@ -104,20 +127,33 @@ function findRowIndexByValue_(sheet, colName, value) {
   return -1;
 }
 
+/* কলামের POSITION-এর বদলে HEADER NAME ধরে row বসায় — তাই কেউ Sheet-এ ম্যানুয়ালি
+   কলাম যোগ/সরিয়ে ফেললেও ডেটা ভুল ঘরে গিয়ে বসে না। dataObj-এ যে কী নেই তার ঘর খালি থাকে। */
+function appendRowByHeaders_(sheet, dataObj) {
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const row = headers.map(h => (dataObj[h] !== undefined ? dataObj[h] : ""));
+  sheet.appendRow(row);
+}
+function setRowByHeaders_(sheet, rowIdx, dataObj) {
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const row = headers.map(h => (dataObj[h] !== undefined ? dataObj[h] : sheet.getRange(rowIdx, headers.indexOf(h) + 1).getValue()));
+  sheet.getRange(rowIdx, 1, 1, headers.length).setValues([row]);
+}
+
 /* ---------------------------------------------------------------------- */
 /* Products                                                                */
 /* ---------------------------------------------------------------------- */
 function addProduct_(p) {
   const sheet = getSheet_(SHEETS.PRODUCTS);
   const id = p.id || "p" + new Date().getTime();
-  sheet.appendRow([id, p.category, p.variety, p.qty, p.unit, p.packetPrice, p.kgPrice, p.bulkPrice, p.retailPrice]);
+  appendRowByHeaders_(sheet, { id, category: p.category, variety: p.variety, qty: p.qty, unit: p.unit, packetPrice: p.packetPrice, kgPrice: p.kgPrice, bulkPrice: p.bulkPrice, retailPrice: p.retailPrice });
   return { ok: true, id: id };
 }
 function updateProduct_(p) {
   const sheet = getSheet_(SHEETS.PRODUCTS);
   const rowIdx = findRowIndexByValue_(sheet, "id", p.id);
   if (rowIdx === -1) return { error: "product not found: " + p.id };
-  sheet.getRange(rowIdx, 1, 1, 9).setValues([[p.id, p.category, p.variety, p.qty, p.unit, p.packetPrice, p.kgPrice, p.bulkPrice, p.retailPrice]]);
+  setRowByHeaders_(sheet, rowIdx, { id: p.id, category: p.category, variety: p.variety, qty: p.qty, unit: p.unit, packetPrice: p.packetPrice, kgPrice: p.kgPrice, bulkPrice: p.bulkPrice, retailPrice: p.retailPrice });
   return { ok: true };
 }
 function deleteProduct_(p) {
@@ -135,11 +171,11 @@ function upsertCustomer_(c) {
   const sheet = getSheet_(SHEETS.CUSTOMERS);
   const phoneNorm = normalizePhone_(c.phone);
   const rowIdx = findRowIndexByValue_(sheet, "phone", phoneNorm);
-  const rowData = ["'" + phoneNorm, c.name || "", c.address || "", c.district || "", c.thana || "", c.varietyNote || ""];
+  const rowData = { phone: "'" + phoneNorm, name: c.name || "", address: c.address || "", district: c.district || "", thana: c.thana || "", varietyNote: c.varietyNote || "" };
   if (rowIdx === -1) {
-    sheet.appendRow(rowData);
+    appendRowByHeaders_(sheet, rowData);
   } else {
-    sheet.getRange(rowIdx, 1, 1, 6).setValues([rowData]);
+    setRowByHeaders_(sheet, rowIdx, rowData);
   }
   return { ok: true };
 }
@@ -149,7 +185,7 @@ function upsertCustomer_(c) {
 /* ---------------------------------------------------------------------- */
 function addLedgerEntry_(p) {
   const sheet = getSheet_(SHEETS.LEDGER);
-  sheet.appendRow([new Date(), "'" + normalizePhone_(p.phone), p.type, p.amount, p.note || ""]);
+  appendRowByHeaders_(sheet, { timestamp: new Date(), phone: "'" + normalizePhone_(p.phone), type: p.type, amount: p.amount, note: p.note || "" });
   return { ok: true };
 }
 
@@ -158,11 +194,14 @@ function addLedgerEntry_(p) {
 /* ---------------------------------------------------------------------- */
 function saveSale_(p) {
   const sheet = getSheet_(SHEETS.SALES);
-  sheet.appendRow([
-    p.invoiceNo, p.date, p.customerName, "'" + normalizePhone_(p.customerPhone),
-    p.customerDistrict || "", p.customerThana || "", p.customerAddress || "",
-    p.itemsJSON, p.itemsTotal, p.oldDueAmount, p.grandTotal, p.paidAmount, p.dueAmount,
-  ]);
+  appendRowByHeaders_(sheet, {
+    invoiceNo: p.invoiceNo, date: p.date, customerName: p.customerName,
+    customerPhone: "'" + normalizePhone_(p.customerPhone),
+    customerDistrict: p.customerDistrict || "", customerThana: p.customerThana || "",
+    customerAddress: p.customerAddress || "", itemsSummary: p.itemsSummary || "",
+    itemsJSON: p.itemsJSON, itemsTotal: p.itemsTotal, oldDueAmount: p.oldDueAmount,
+    grandTotal: p.grandTotal, paidAmount: p.paidAmount, dueAmount: p.dueAmount,
+  });
   return { ok: true };
 }
 function updateSale_(p) {
