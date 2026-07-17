@@ -25,7 +25,7 @@ green-agro-seeds/
 
 শুধু `index.html` ব্রাউজারে খুললেই চলবে। ইন্টারনেট শুধু Google Fonts আর PDF লাইব্রেরি (CDN) লোড করতে লাগবে; ডেটা সবসময় স্থানীয়ভাবে (browser-এর localStorage) সেভ হয়।
 
-Netlify-তে ডিপ্লয় করতে চাইলে পুরো ফোল্ডারটা drag-and-drop করলেই হবে (Khalid's Dreams-এর মতোই)।
+Netlify-তে ডিপ্লয় করতে চাইলে পুরো ফোল্ডারটা drag-and-drop করলেই হবে
 
 ## মূল্য হিসাবের লজিক
 
