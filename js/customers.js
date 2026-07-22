@@ -211,7 +211,7 @@ function closeCustomerModal() {
   document.getElementById("customerModal").classList.remove("open");
 }
 
-function submitManualLedgerEntry(e) {
+async function submitManualLedgerEntry(e) {
   e.preventDefault();
   const f = e.target;
   const type = f.type.value;
@@ -222,15 +222,16 @@ function submitManualLedgerEntry(e) {
   const c = ledger[activeCustomerPhone];
   addLedgerEntry(activeCustomerPhone, c.name, c.address, type, amount, note || (type === "debit" ? "নতুন বাকি" : "পরিশোধ গ্রহণ"));
 
-  if (type === "credit") {
-    // এই পেমেন্টটা গ্রাহকের বকেয়া চালান(গুলো)-তে বণ্টন করে বিক্রয় ইতিহাস ও Sheet-ও আপডেট করে দেয়
-    applyPaymentToCustomerSales(activeCustomerPhone, amount);
-  }
-
   f.reset();
   openCustomerDetail(activeCustomerPhone);
   renderCustomerList();
   toast("এন্ট্রি যোগ হয়েছে");
+
+  if (type === "credit") {
+    // এই পেমেন্টটা গ্রাহকের বকেয়া চালান(গুলো)-তে বণ্টন করে বিক্রয় ইতিহাস ও Sheet-ও আপডেট করে দেয়
+    const leftover = await applyPaymentToCustomerSales(activeCustomerPhone, amount);
+    if (leftover > 0) toast(`${formatTaka(leftover)} কোনো বকেয়া চালানে বসানো যায়নি — অগ্রিম জমা হিসেবে থাকবে`);
+  }
 }
 
 function addNewCustomerManually(e) {
