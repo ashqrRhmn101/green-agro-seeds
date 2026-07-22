@@ -306,18 +306,27 @@ function saveSale() {
   const address = document.getElementById("custAddress").value.trim();
   const varietyNote = document.getElementById("custNote").value;
   if (!name || !phone) { toast("গ্রাহকের নাম ও ফোন নম্বর আবশ্যক"); return null; }
+  const normPhone = normalizePhone(phone);
 
   const oldDue = Number(document.getElementById("oldDueAmount").value || 0);
   const itemsTotal = currentOrderItems.reduce((s, it) => s + it.total, 0);
   const total = updateGrandTotal();
-  const paid = Number(document.getElementById("paidAmount").value || 0);
+  const explicitPaid = Number(document.getElementById("paidAmount").value || 0);
+
+  // এই গ্রাহকের যদি আগে থেকে "অগ্রিম জমা" (ledger balance ঋণাত্মক) থাকে, সেটা এই
+  // নতুন চালানের বিপরীতে স্বয়ংক্রিয়ভাবে ব্যবহার হবে — যাতে চালানের নিজের বাকির
+  // পরিমাণ, বিক্রয় ইতিহাস আর ledger-এর সামগ্রিক হিসাব সবসময় একসাথে মিলে থাকে।
+  const existingBalance = getBalance(normPhone); // ঋণাত্মক মানে অগ্রিম জমা আছে
+  const advanceAvailable = existingBalance < 0 ? -existingBalance : 0;
+  const advanceUsed = Math.min(advanceAvailable, Math.max(total - explicitPaid, 0));
+  const paid = explicitPaid + advanceUsed;
   const due = Math.max(total - paid, 0);
 
   const sale = {
     invoiceNo: nextInvoiceNo(),
     date: new Date().toISOString(),
     customerName: name,
-    customerPhone: normalizePhone(phone),
+    customerPhone: normPhone,
     customerDistrict: district,
     customerThana: thana,
     customerAddress: address,
@@ -333,18 +342,22 @@ function saveSale() {
   sales.push(sale);
   localStorage.setItem(LS_SALES, JSON.stringify(sales));
 
-  ensureCustomerProfile(sale.customerPhone, { name, address, district, thana, varietyNote });
+  ensureCustomerProfile(normPhone, { name, address, district, thana, varietyNote });
 
+  if (advanceUsed > 0) {
+    addLedgerEntry(normPhone, name, address, "debit", advanceUsed, `চালান ${sale.invoiceNo} — পূর্বের অগ্রিম জমা সমন্বয়`);
+  }
   if (due > 0) {
     const note = oldDue > 0
       ? `চালান ${sale.invoiceNo} — বাকি (পুরাতন বকেয়া ${formatTaka(oldDue)} সহ)`
       : `চালান ${sale.invoiceNo} — বাকি`;
-    addLedgerEntry(sale.customerPhone, name, address, "debit", due, note);
+    addLedgerEntry(normPhone, name, address, "debit", due, note);
   }
 
   pushSaleToSheet(sale);
 
-  toast(`বিক্রয় সংরক্ষিত হয়েছে — ${sale.invoiceNo}`);
+  const advanceNote = advanceUsed > 0 ? ` (অগ্রিম জমা থেকে ${formatTaka(advanceUsed)} বাদ হয়েছে)` : "";
+  toast(`বিক্রয় সংরক্ষিত হয়েছে — ${sale.invoiceNo}${advanceNote}`);
   return sale;
 }
 
@@ -362,33 +375,41 @@ async function pushSaleToSheet(sale) {
    কমে যেত, কিন্তু বিক্রয় ইতিহাস/Sheet-এ কোনো চালানের বাকি কমত না। এই ফাংশনটা
    সেই টাকাটা গ্রাহকের বকেয়া চালানগুলোতে (পুরনোটা আগে) বণ্টন করে দেয়, যাতে
    ledger, বিক্রয় ইতিহাস আর Google Sheet — তিন জায়গাতেই হিসাব মিলে যায়। */
-function applyPaymentToCustomerSales(phone, amount) {
+async function applyPaymentToCustomerSales(phone, amount) {
   let remaining = amount;
   const allSales = getAllSales();
   const dueSales = allSales
     .filter(s => s.customerPhone === phone && s.dueAmount > 0)
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-  if (dueSales.length === 0) return; // এই গ্রাহকের নামে কোনো বকেয়া চালান নেই (হয়তো পুরনো/আলাদা বকেয়া)
+  if (dueSales.length === 0) return amount; // কোনো বকেয়া চালান নেই — পুরো টাকাটাই অগ্রিম জমা হিসেবে থেকে যাবে
 
-  dueSales.forEach(s => {
-    if (remaining <= 0) return;
+  // একাধিক চালান আপডেট করতে হলে একটার পর একটা (sequentially) পাঠানো হয় —
+  // একসাথে অনেকগুলো রিকোয়েস্ট পাঠালে মাঝেমধ্যে Sheet-এ কোনোটা বাদ পড়ে যেতে পারত।
+  for (const s of dueSales) {
+    if (remaining <= 0) break;
     const pay = Math.min(remaining, s.dueAmount);
     const target = allSales.find(x => x.invoiceNo === s.invoiceNo);
     target.paidAmount = Number(target.paidAmount || 0) + pay;
     target.dueAmount = Math.max(target.grandTotal - target.paidAmount, 0);
     remaining -= pay;
 
-    if (isSheetConnected()) {
-      sheetUpdateSale({
-        invoiceNo: target.invoiceNo, paidAmount: target.paidAmount,
-        dueAmount: target.dueAmount, grandTotal: target.grandTotal,
-      }).catch(err => console.error("Sheet sync (ledger payment → sale) failed:", err));
-    }
-  });
+    localStorage.setItem(LS_SALES, JSON.stringify(allSales)); // প্রতিটা ধাপেই লোকালি সেভ রাখা হয়
 
-  localStorage.setItem(LS_SALES, JSON.stringify(allSales));
+    if (isSheetConnected()) {
+      try {
+        await sheetUpdateSale({
+          invoiceNo: target.invoiceNo, paidAmount: target.paidAmount,
+          dueAmount: target.dueAmount, grandTotal: target.grandTotal,
+        });
+      } catch (err) {
+        console.error("Sheet sync (ledger payment → sale) failed:", err);
+      }
+    }
+  }
+
   if (typeof renderHistory === "function") renderHistory();
+  return remaining; // যা বাকি রইলো, সেটা অগ্রিম জমা হিসেবে ledger balance-এই থেকে যাবে
 }
 
 async function syncSalesFromSheet() {
@@ -549,6 +570,8 @@ function resetSaleForm() {
   document.getElementById("custNote").value = "";
   document.getElementById("oldDueAmount").value = "";
   document.getElementById("paidAmount").value = "";
+  const hint = document.getElementById("custBalanceHint");
+  if (hint) hint.style.display = "none";
   updateGrandTotal();
 }
 
@@ -576,9 +599,11 @@ function initCustomerAutofill() {
 
 function tryAutofillCustomer(rawPhone) {
   const phone = normalizePhone(rawPhone);
-  if (phone.length < 11) return;
+  const hint = document.getElementById("custBalanceHint");
+  if (phone.length < 11) { if (hint) hint.style.display = "none"; return; }
+
   const c = getLedger()[phone];
-  if (!c) return;
+  if (!c) { if (hint) hint.style.display = "none"; return; }
 
   document.getElementById("custName").value = c.name || "";
   document.getElementById("custAddress").value = c.address || "";
@@ -587,6 +612,27 @@ function tryAutofillCustomer(rawPhone) {
     document.getElementById("custDistrict").value = c.district;
     populateThanaSelect(c.district, "custThana");
     if (c.thana) document.getElementById("custThana").value = c.thana;
+  }
+
+  // এখানে ইচ্ছাকৃতভাবে "পুরাতন বকেয়া" ফিল্ডে কিছু বসানো হচ্ছে না — কারণ এই গ্রাহকের
+  // আগের বাকি ইতিমধ্যেই ledger-এ ট্র্যাক করা আছে এবং প্রতিটা নতুন চালানের অপরিশোধিত
+  // অংশ স্বয়ংক্রিয়ভাবে সেই ব্যালান্সে যোগ হয়ে যাবে। এখানে আবার বসালে দুইবার গোনা
+  // (double-count) হয়ে যেত। শুধু তথ্যের জন্য বর্তমান ব্যালান্স দেখানো হচ্ছে।
+  const balance = getBalance(phone);
+  if (hint) {
+    if (balance > 0) {
+      hint.textContent = `⚠️ এই গ্রাহকের বর্তমান বাকি: ${formatTaka(balance)} (নতুন করে "পুরাতন বকেয়া"-তে বসানোর দরকার নেই, এমনিতেই যোগ হয়ে যাবে)`;
+      hint.style.color = "var(--rust)";
+      hint.style.display = "block";
+    } else if (balance < 0) {
+      hint.textContent = `✓ এই গ্রাহকের অগ্রিম জমা আছে: ${formatTaka(-balance)} — নতুন চালানে স্বয়ংক্রিয়ভাবে বাদ যাবে`;
+      hint.style.color = "var(--green-2)";
+      hint.style.display = "block";
+    } else {
+      hint.textContent = "✓ এই গ্রাহকের হিসাব বর্তমানে ক্লিয়ার";
+      hint.style.color = "var(--ink-muted)";
+      hint.style.display = "block";
+    }
   }
   toast(`পুরনো গ্রাহক পাওয়া গেছে — ${c.name || phone}`);
 }
