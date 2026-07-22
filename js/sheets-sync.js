@@ -13,13 +13,13 @@ function getWebAppUrl() { return (localStorage.getItem(WEBAPP_URL_KEY) || "").tr
 function setWebAppUrl(url) { localStorage.setItem(WEBAPP_URL_KEY, (url || "").trim()); }
 function isSheetConnected() { return !!getWebAppUrl(); }
 
-function jsonpRequest(params) {
+function jsonpRequestOnce(params) {
   return new Promise((resolve, reject) => {
     const base = getWebAppUrl();
     if (!base) { reject(new Error("Google Sheet সংযুক্ত নেই")); return; }
 
     const cbName = "gasCb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
-    const timer = setTimeout(() => { cleanup(); reject(new Error("সময় শেষ (timeout) — সংযোগ চেক করুন")); }, 15000);
+    const timer = setTimeout(() => { cleanup(); reject(new Error("সময় শেষ (timeout) — সংযোগ চেক করুন")); }, 20000);
 
     function cleanup() {
       clearTimeout(timer);
@@ -38,6 +38,18 @@ function jsonpRequest(params) {
     script.src = `${base}?${query}`;
     script.onerror = () => { cleanup(); reject(new Error("Google Sheet-এ সংযোগ ব্যর্থ হয়েছে")); };
     document.body.appendChild(script);
+  });
+}
+
+/* সাময়িক নেটওয়ার্ক সমস্যা/timeout হলে একবার আবার চেষ্টা করে — এটাই "মাঝে মাঝে
+   আপডেট নেয় না" সমস্যার একটা বড় কারণ ছিল, বিশেষ করে দ্রুত একাধিক রিকোয়েস্ট
+   পাঠালে। ব্যর্থ হলে সাথে সাথে না চেষ্টা করে সামান্য অপেক্ষা করে আবার পাঠায়। */
+function jsonpRequest(params, _retriesLeft = 1) {
+  return jsonpRequestOnce(params).catch(err => {
+    if (_retriesLeft > 0) {
+      return new Promise(resolve => setTimeout(resolve, 900)).then(() => jsonpRequest(params, _retriesLeft - 1));
+    }
+    throw err;
   });
 }
 

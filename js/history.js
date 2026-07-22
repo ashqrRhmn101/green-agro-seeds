@@ -23,7 +23,14 @@ function renderHistory() {
   const allSales = getAllSales().slice().reverse();
   const sales = filterSales(allSales);
   const totalRevenue = sales.reduce((s, x) => s + x.grandTotal, 0);
-  const totalDue = sales.reduce((s, x) => s + x.dueAmount, 0);
+
+  // "মোট বাকি" এখন শুধু চালানের dueAmount যোগ করে না — এই গ্রাহকদের প্রকৃত ledger
+  // ব্যালান্স (ম্যানুয়াল বাকি/পুরনো বকেয়া/পরিশোধ সব মিলিয়ে) থেকে হিসাব করা হয়,
+  // যাতে বাকি/পাওনা পেজ আর বিক্রয় ইতিহাস পেজের সংখ্যায় কখনো গরমিল না হয়
+  const phonesInView = [...new Set(sales.map(s => s.customerPhone))];
+  const totalDue = typeof getBalance === "function"
+    ? phonesInView.reduce((sum, phone) => sum + Math.max(getBalance(phone), 0), 0)
+    : sales.reduce((s, x) => s + x.dueAmount, 0);
 
   document.getElementById("histCount").textContent = sales.length.toLocaleString("bn-BD");
   document.getElementById("histRevenue").textContent = formatTaka(totalRevenue);
