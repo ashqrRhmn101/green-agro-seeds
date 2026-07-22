@@ -72,8 +72,17 @@ function addMissingColumns() {
 
 function doGet(e) {
   const action = e.parameter.action;
+  const WRITE_ACTIONS = ["addProduct", "updateProduct", "deleteProduct", "upsertCustomer", "addLedgerEntry", "saveSale", "updateSale"];
   let result;
+  let lock;
   try {
+    // দুইটা রিকোয়েস্ট (যেমন একই সময়ে দুইটা ইনভয়েস আপডেট) একসাথে এসে একে অপরের লেখা
+    // এলোমেলো করে ফেলতে পারত — এই লক দিয়ে write অপারেশনগুলো এক-এক করে (সিরিয়ালি)
+    // চলে, যার ফলে "মাঝে মাঝে আপডেট নেয় না" জাতীয় সমস্যা আর হবে না।
+    if (WRITE_ACTIONS.indexOf(action) !== -1) {
+      lock = LockService.getScriptLock();
+      lock.waitLock(15000);
+    }
     switch (action) {
       case "fetchProducts": result = getRows_(SHEETS.PRODUCTS); break;
       case "addProduct":    result = addProduct_(e.parameter); break;
@@ -94,6 +103,8 @@ function doGet(e) {
     }
   } catch (err) {
     result = { error: String(err) };
+  } finally {
+    if (lock) lock.releaseLock();
   }
   return jsonp_(e, result);
 }
@@ -130,14 +141,37 @@ function findRowIndexByValue_(sheet, colName, value) {
 /* কলামের POSITION-এর বদলে HEADER NAME ধরে row বসায় — তাই কেউ Sheet-এ ম্যানুয়ালি
    কলাম যোগ/সরিয়ে ফেললেও ডেটা ভুল ঘরে গিয়ে বসে না। dataObj-এ যে কী নেই তার ঘর খালি থাকে। */
 function appendRowByHeaders_(sheet, dataObj) {
+  ensureHeaders_(sheet, Object.keys(dataObj));
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   const row = headers.map(h => (dataObj[h] !== undefined ? dataObj[h] : ""));
   sheet.appendRow(row);
 }
 function setRowByHeaders_(sheet, rowIdx, dataObj) {
+  ensureHeaders_(sheet, Object.keys(dataObj));
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   const row = headers.map(h => (dataObj[h] !== undefined ? dataObj[h] : sheet.getRange(rowIdx, headers.indexOf(h) + 1).getValue()));
   sheet.getRange(rowIdx, 1, 1, headers.length).setValues([row]);
+}
+
+/* dataObj-এ যেসব key হেডারে এখনো নেই, সেগুলো নিজে থেকেই নতুন কলাম হিসেবে যোগ করে দেয় —
+   তাই "addMissingColumns" ম্যানুয়ালি Run করার আর দরকার নেই, প্রতিটা রাইট নিজে থেকেই
+   ঠিক করে নেয়। itemsSummary/itemsJSON কলামে word-wrap ও যুক্তিসঙ্গত width সেট করে দেয়,
+   যাতে টেক্সট পাশের ঘরে উপচে পড়ে হিজিবিজি দেখানোর বদলে নিজের ঘরেই সুন্দরভাবে wrap হয়। */
+function ensureHeaders_(sheet, keys) {
+  let headers = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0];
+  keys.forEach(key => {
+    if (headers.indexOf(key) === -1) {
+      const newCol = sheet.getLastColumn() + 1;
+      sheet.getRange(1, newCol).setValue(key).setFontWeight("bold").setBackground("#EAF3E4");
+      if (key === "itemsSummary") {
+        sheet.setColumnWidth(newCol, 340);
+        sheet.getRange(1, newCol, sheet.getMaxRows(), 1).setWrap(true);
+      } else if (key === "itemsJSON") {
+        sheet.setColumnWidth(newCol, 90);
+      }
+      headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    }
+  });
 }
 
 /* ---------------------------------------------------------------------- */
