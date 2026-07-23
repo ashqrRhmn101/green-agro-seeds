@@ -8,6 +8,8 @@
  * ৪. উপরের ফাংশন ড্রপডাউন থেকে "setup" সিলেক্ট করে ▶ Run বাটনে চাপুন
  *    — প্রথমবার permission চাইবে, "Allow" করে দিন
  *    — এটা "Products", "Customers", "Ledger", "Sales" নামে ৪টা ট্যাব ও হেডার রো বানিয়ে দেবে
+ *    — Sheet-এ ট্যাবগুলো তৈরি হয়েছে কিনা সরাসরি দেখেই বোঝা যাবে (কোনো পপ-আপ আসবে না;
+ *      বিস্তারিত দেখতে চাইলে Execution log-এ চোখ রাখুন)
  * ৫. Deploy → New deployment → টাইপ হিসেবে "Web app" বেছে নিন
  *    - Execute as: Me
  *    - Who has access: Anyone
@@ -48,7 +50,9 @@ function setup() {
       sheet.getRange(1, 1, 1, HEADERS[name].length).setFontWeight("bold").setBackground("#EAF3E4");
     }
   });
-  SpreadsheetApp.getUi().alert("সেটআপ সম্পন্ন হয়েছে — Products, Customers, Ledger, Sales ট্যাব তৈরি হয়ে গেছে। এখন Deploy → New deployment করুন।");
+  // getUi() স্ক্রিপ্ট এডিটর থেকে সরাসরি Run করলে কাজ করে না (UI context থাকে না),
+  // তাই Logger ব্যবহার করা হচ্ছে — ফলাফল দেখতে উপরের মেনু থেকে View → Logs খুলুন
+  Logger.log("সেটআপ সম্পন্ন হয়েছে — Products, Customers, Ledger, Sales ট্যাব তৈরি হয়ে গেছে। এখন Deploy → New deployment করুন।");
 }
 
 /* আগে থেকে Sheet ব্যবহার করছেন এমন কারো জন্য — নতুন কোনো কলাম (যেমন itemsSummary)
@@ -67,7 +71,7 @@ function addMissingColumns() {
       }
     });
   });
-  SpreadsheetApp.getUi().alert("প্রয়োজনীয় নতুন কলাম যোগ করা হয়েছে (আগের ডেটা অক্ষত আছে)।");
+  Logger.log("প্রয়োজনীয় নতুন কলাম যোগ করা হয়েছে (আগের ডেটা অক্ষত আছে)।");
 }
 
 function doGet(e) {
