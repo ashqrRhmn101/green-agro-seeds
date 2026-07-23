@@ -265,6 +265,8 @@ button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible
   border: 1px solid var(--border-soft);
   border-radius: var(--radius);
   box-shadow: var(--shadow-sm);
+  min-width: 0;          /* গ্রিড/ফ্লেক্স আইটেম হিসেবে ব্যবহার হলে যেন কনটেন্ট বক্সের বাইরে উপচে না পড়ে */
+  overflow-wrap: anywhere;
 }
 
 .card--pad { padding: 20px clamp(16px, 3vw, 26px); }
