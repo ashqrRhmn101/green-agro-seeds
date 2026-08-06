@@ -265,12 +265,12 @@ function renderOrderItems() {
 function updateGrandTotal() {
   const itemsTotal = currentOrderItems.reduce((s, it) => s + it.total, 0);
   const oldDue = Number(document.getElementById("oldDueAmount").value || 0);
-  const total = itemsTotal + oldDue;
+  const total = itemsTotal; // পুরাতন বকেয়া এখন শুধু তথ্যের জন্য — মোট/বাকির হিসাবে যোগ হয় না
   document.getElementById("grandTotal").textContent = formatTaka(total);
 
   const hint = document.getElementById("oldDueHint");
   if (oldDue > 0) {
-    hint.textContent = `(পণ্য ${formatTaka(itemsTotal)} + পুরাতন বকেয়া ${formatTaka(oldDue)})`;
+    hint.textContent = `পুরাতন বকেয়া ৳${oldDue.toLocaleString("bn-BD")} শুধু ইনভয়েসে মনে করিয়ে দেওয়ার জন্য দেখানো হবে — এই চালানের মোট/বাকির হিসাবে যোগ হচ্ছে না`;
     hint.style.display = "block";
   } else {
     hint.style.display = "none";
@@ -348,10 +348,7 @@ function saveSale() {
     addLedgerEntry(normPhone, name, address, "debit", advanceUsed, `চালান ${sale.invoiceNo} — পূর্বের অগ্রিম জমা সমন্বয়`);
   }
   if (due > 0) {
-    const note = oldDue > 0
-      ? `চালান ${sale.invoiceNo} — বাকি (পুরাতন বকেয়া ${formatTaka(oldDue)} সহ)`
-      : `চালান ${sale.invoiceNo} — বাকি`;
-    addLedgerEntry(normPhone, name, address, "debit", due, note);
+    addLedgerEntry(normPhone, name, address, "debit", due, `চালান ${sale.invoiceNo} — বাকি`);
   }
 
   pushSaleToSheet(sale);

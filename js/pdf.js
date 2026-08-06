@@ -91,14 +91,15 @@ function buildInvoiceHTML(sale) {
         <tbody>${rows}</tbody>
       </table>
       <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:14px">
-        ${sale.oldDueAmount > 0 ? `
-        <tr><td style="padding:4px 8px;text-align:right;color:#56685C">পণ্যের মূল্য</td><td style="padding:4px 8px;text-align:right;width:140px" class="en">৳ ${(sale.itemsTotal ?? (sale.grandTotal - sale.oldDueAmount)).toLocaleString("bn-BD")}</td></tr>
-        <tr><td style="padding:4px 8px;text-align:right;color:#56685C">পুরাতন বকেয়া</td><td style="padding:4px 8px;text-align:right;width:140px" class="en">৳ ${sale.oldDueAmount.toLocaleString("bn-BD")}</td></tr>
-        ` : ""}
-        <tr><td style="padding:4px 8px;text-align:right">সর্বমোট</td><td style="padding:4px 8px;text-align:right;font-weight:700;width:140px" class="en">৳ ${sale.grandTotal.toLocaleString("bn-BD")}</td></tr>
+        <tr><td style="padding:4px 8px;text-align:right">সর্বমোট (এই চালান)</td><td style="padding:4px 8px;text-align:right;font-weight:700;width:140px" class="en">৳ ${sale.grandTotal.toLocaleString("bn-BD")}</td></tr>
         <tr><td style="padding:4px 8px;text-align:right">পরিশোধিত</td><td style="padding:4px 8px;text-align:right" class="en">৳ ${sale.paidAmount.toLocaleString("bn-BD")}</td></tr>
-        <tr><td style="padding:4px 8px;text-align:right;color:${sale.dueAmount > 0 ? '#B5502E' : '#0d4e24'}">বাকি</td><td style="padding:4px 8px;text-align:right;font-weight:700;color:${sale.dueAmount > 0 ? '#B5502E' : '#0d4e24'}" class="en">৳ ${sale.dueAmount.toLocaleString("bn-BD")}</td></tr>
+        <tr><td style="padding:4px 8px;text-align:right;color:${sale.dueAmount > 0 ? '#B5502E' : '#0d4e24'}">এই চালানের বাকি</td><td style="padding:4px 8px;text-align:right;font-weight:700;color:${sale.dueAmount > 0 ? '#B5502E' : '#0d4e24'}" class="en">৳ ${sale.dueAmount.toLocaleString("bn-BD")}</td></tr>
       </table>
+      ${sale.oldDueAmount > 0 ? `
+      <div style="margin-top:14px;background:#F7E7E1;border:1px solid #e8c4b4;border-radius:8px;padding:10px 14px;font-size:12px;color:#8a3f26">
+        <b>স্মরণ করিয়ে দেওয়া হচ্ছে:</b> এই গ্রাহকের পুরাতন বকেয়া ছিল <b class="en">৳ ${sale.oldDueAmount.toLocaleString("bn-BD")}</b> — এটা শুধুমাত্র তথ্যের জন্য দেখানো হচ্ছে, উপরের হিসাবে যুক্ত করা হয়নি।
+      </div>
+      ` : ""}
       <div style="margin-top:20px;font-size:11px;color:#8B9A8F">স্বাক্ষর: ______________</div>
       ${footerHTML()}
     </div>
