@@ -268,8 +268,8 @@ function downloadChalanPDF(invoiceNo) {
 }
 
 /* সরাসরি বিক্রয় ফর্ম থেকে সেভ করার পর তাৎক্ষণিক ডাউনলোড */
-function saveSaleAndDownload(type) {
-  const sale = saveSale();
+async function saveSaleAndDownload(type) {
+  const sale = await saveSale();
   if (!sale) return;
   if (type === "invoice") downloadInvoicePDF(sale.invoiceNo);
   if (type === "chalan") downloadChalanPDF(sale.invoiceNo);

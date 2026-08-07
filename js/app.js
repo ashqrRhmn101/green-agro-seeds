@@ -296,7 +296,7 @@ function getAllSales() {
   return JSON.parse(localStorage.getItem(LS_SALES) || "[]");
 }
 
-function saveSale() {
+async function saveSale() {
   if (currentOrderItems.length === 0) { toast("অন্তত একটি পণ্য যোগ করুন"); return null; }
 
   const name = document.getElementById("custName").value.trim();
@@ -308,19 +308,25 @@ function saveSale() {
   if (!name || !phone) { toast("গ্রাহকের নাম ও ফোন নম্বর আবশ্যক"); return null; }
   const normPhone = normalizePhone(phone);
 
-  const oldDue = Number(document.getElementById("oldDueAmount").value || 0);
+  const oldDue = Number(document.getElementById("oldDueAmount").value || 0); // শুধু PDF-এ দেখানোর জন্য, হিসাবে না
   const itemsTotal = currentOrderItems.reduce((s, it) => s + it.total, 0);
-  const total = updateGrandTotal();
+  const total = updateGrandTotal(); // = itemsTotal
   const explicitPaid = Number(document.getElementById("paidAmount").value || 0);
 
-  // এই গ্রাহকের যদি আগে থেকে "অগ্রিম জমা" (ledger balance ঋণাত্মক) থাকে, সেটা এই
-  // নতুন চালানের বিপরীতে স্বয়ংক্রিয়ভাবে ব্যবহার হবে — যাতে চালানের নিজের বাকির
-  // পরিমাণ, বিক্রয় ইতিহাস আর ledger-এর সামগ্রিক হিসাব সবসময় একসাথে মিলে থাকে।
-  const existingBalance = getBalance(normPhone); // ঋণাত্মক মানে অগ্রিম জমা আছে
-  const advanceAvailable = existingBalance < 0 ? -existingBalance : 0;
-  const advanceUsed = Math.min(advanceAvailable, Math.max(total - explicitPaid, 0));
-  const paid = explicitPaid + advanceUsed;
-  const due = Math.max(total - paid, 0);
+  // ধাপ ১: প্রথমে এই অর্ডারের নিজের খরচ মেটানো হয় (এই চালানের paid কখনো তার
+  // নিজের total-এর বেশি হবে না — তাই চালানের হিসাব সবসময় নিজে থেকেই সঠিক থাকে)
+  let paid = Math.min(explicitPaid, total);
+  let due = Math.max(total - paid, 0);
+  const overpayment = Math.max(explicitPaid - total, 0); // এই অর্ডারের চেয়ে বেশি যা দেওয়া হয়েছে
+
+  // ধাপ ২: এই অর্ডারে তবুও বাকি থাকলে, গ্রাহকের আগে থেকে কোনো অগ্রিম জমা (ঋণাত্মক ব্যালান্স) থাকলে সেটা এখানে ব্যবহার হয়
+  const existingBalance = getBalance(normPhone);
+  let advanceUsed = 0;
+  if (due > 0 && existingBalance < 0) {
+    advanceUsed = Math.min(-existingBalance, due);
+    paid += advanceUsed;
+    due -= advanceUsed;
+  }
 
   const sale = {
     invoiceNo: nextInvoiceNo(),
@@ -353,8 +359,19 @@ function saveSale() {
 
   pushSaleToSheet(sale);
 
-  const advanceNote = advanceUsed > 0 ? ` (অগ্রিম জমা থেকে ${formatTaka(advanceUsed)} বাদ হয়েছে)` : "";
-  toast(`বিক্রয় সংরক্ষিত হয়েছে — ${sale.invoiceNo}${advanceNote}`);
+  // ধাপ ৩: এই অর্ডারের চেয়ে বেশি টাকা দিলে (overpayment), সেই অতিরিক্ত অংশটা
+  // গ্রাহকের পুরনো বকেয়া চালান(গুলো)-তে (সবচেয়ে পুরনোটা আগে) বণ্টন হয়ে যায় —
+  // যা কোনো বকেয়া চালানে না বসলে ledger-এ অগ্রিম জমা হিসেবে থেকে যাবে।
+  let overpayLeftover = 0;
+  if (overpayment > 0) {
+    addLedgerEntry(normPhone, name, address, "credit", overpayment, `চালান ${sale.invoiceNo} — অতিরিক্ত পরিশোধ (পুরনো বকেয়ায় সমন্বয়)`);
+    overpayLeftover = await applyPaymentToCustomerSales(normPhone, overpayment);
+  }
+
+  let msg = `বিক্রয় সংরক্ষিত হয়েছে — ${sale.invoiceNo}`;
+  if (advanceUsed > 0) msg += ` (অগ্রিম জমা থেকে ${formatTaka(advanceUsed)} বাদ হয়েছে)`;
+  if (overpayment > 0) msg += ` (অতিরিক্ত ${formatTaka(overpayment)} পুরনো বকেয়ায় সমন্বয় হয়েছে)`;
+  toast(msg);
   return sale;
 }
 
