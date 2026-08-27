@@ -128,11 +128,13 @@ function renderCustomerList() {
   const allRows = getAllCustomerRows();
 
   if (allRows.length === 0) {
+    updateLedgerStats([]);
     wrap.innerHTML = `<div class="empty-state"><p>এখনো কোনো গ্রাহকের হিসাব নেই — বিক্রয় করলে বা ম্যানুয়াল এন্ট্রি দিলে এখানে দেখা যাবে</p></div>`;
     return;
   }
 
   const rows = filterCustomerRows(allRows).sort((a, b) => b.bal - a.bal);
+  updateLedgerStats(rows);
 
   if (rows.length === 0) {
     wrap.innerHTML = `<div class="empty-state"><p>সার্চের সাথে মিলে এমন কোনো গ্রাহক পাওয়া যায়নি</p></div>`;
@@ -152,6 +154,20 @@ function renderCustomerList() {
   `).join("");
 }
 
+function updateLedgerStats(rows) {
+  const custCount = document.getElementById("ledgerCustCount");
+  const dueCount = document.getElementById("ledgerDueCount");
+  const totalDue = document.getElementById("ledgerTotalDue");
+  if (!custCount || !dueCount || !totalDue) return;
+
+  const dueRows = rows.filter(r => r.bal > 0);
+  const sumDue = dueRows.reduce((s, r) => s + r.bal, 0);
+
+  custCount.textContent = rows.length.toLocaleString("bn-BD");
+  dueCount.textContent = dueRows.length.toLocaleString("bn-BD");
+  totalDue.textContent = formatTaka(sumDue);
+}
+
 function exportLedgerCSV() {
   const rows = filterCustomerRows(getAllCustomerRows()).sort((a, b) => b.bal - a.bal);
   const headers = ["ফোন", "নাম", "ঠিকানা", "জেলা", "থানা", "নোটস", "ব্যালেন্স (টাকা)", "অবস্থা"];
@@ -166,7 +182,12 @@ function exportLedgerPDF() {
     r.name || "-", r.phone, [r.district, r.thana].filter(Boolean).join(", ") || "-", r.varietyNote || "-",
     (r.bal > 0 ? "বাকি " : r.bal < 0 ? "অগ্রিম " : "") + formatTaka(Math.abs(r.bal)),
   ]);
-  downloadTablePDF("গ্রাহকের বাকি/পাওনা রিপোর্ট", headers, pdfRows, `customers-ledger-${Date.now()}.pdf`);
+  const totalDue = rows.reduce((s, r) => s + Math.max(r.bal, 0), 0);
+  const summaryLines = [
+    ["মোট গ্রাহক সংখ্যা", rows.length.toLocaleString("bn-BD")],
+    ["সর্বমোট বাকি", formatTaka(totalDue)],
+  ];
+  downloadTablePDF("গ্রাহকের বাকি/পাওনা রিপোর্ট", headers, pdfRows, `customers-ledger-${Date.now()}.pdf`, summaryLines);
 }
 
 let activeCustomerPhone = null;
