@@ -215,10 +215,17 @@ function reportHeaderHTML(title) {
   `;
 }
 
-function buildTableReportHTML(title, headers, rows) {
+function buildTableReportHTML(title, headers, rows, summaryLines) {
   const headHtml = headers.map(h => `<th style="padding:8px;text-align:left;background:#EAF3E4">${h}</th>`).join("");
   const rowsHtml = rows.map(r => `<tr>${r.map(c => `<td style="padding:8px;border-bottom:1px solid #eee">${c ?? ""}</td>`).join("")}</tr>`).join("")
     || `<tr><td style="padding:8px;color:#8B9A8F" colspan="${headers.length}">কোনো ডেটা পাওয়া যায়নি</td></tr>`;
+  const summaryHtml = (summaryLines && summaryLines.length) ? `
+    <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:14px">
+      ${summaryLines.map(([label, value]) => `
+        <tr><td style="padding:4px 8px;text-align:right;font-weight:600">${label}</td><td style="padding:4px 8px;text-align:right;font-weight:700;width:160px" class="en">${value}</td></tr>
+      `).join("")}
+    </table>
+  ` : "";
   return `
     <div style="box-sizing:border-box;width:${PDF_PAGE_WIDTH}px;font-family:'Hind Siliguri',sans-serif;padding:36px;background:#fff;color:#142B1B">
       ${reportHeaderHTML(title)}
@@ -226,13 +233,14 @@ function buildTableReportHTML(title, headers, rows) {
         <thead><tr>${headHtml}</tr></thead>
         <tbody>${rowsHtml}</tbody>
       </table>
+      ${summaryHtml}
       ${footerHTML()}
     </div>
   `;
 }
 
-function downloadTablePDF(title, headers, rows, filename) {
-  renderToPDF(buildTableReportHTML(title, headers, rows), filename);
+function downloadTablePDF(title, headers, rows, filename, summaryLines) {
+  renderToPDF(buildTableReportHTML(title, headers, rows, summaryLines), filename);
 }
 
 /* ---------------------------------------------------------------------- */
