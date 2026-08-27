@@ -230,6 +230,12 @@
       <button class="btn btn--primary" onclick="openNewCustomerModal()">+ নতুন গ্রাহক</button>
     </div>
 
+    <div class="history-stats">
+      <div class="card stat-card"><p class="stat-card__label">মোট গ্রাহক</p><p class="stat-card__value en" id="ledgerCustCount">০</p></div>
+      <div class="card stat-card"><p class="stat-card__label">বাকি আছে এমন গ্রাহক</p><p class="stat-card__value en" id="ledgerDueCount">০</p></div>
+      <div class="card stat-card"><p class="stat-card__label">মোট বাকি</p><p class="stat-card__value en" id="ledgerTotalDue" style="color:var(--rust)">৳ 0</p></div>
+    </div>
+
     <div class="search-export-row">
       <input type="text" class="search-input" placeholder="ফোন, নাম বা চালান নম্বর দিয়ে খুঁজুন..." oninput="onLedgerSearchInput(this.value)">
       <button class="btn btn--ghost btn--sm" onclick="exportLedgerCSV()">CSV এক্সপোর্ট</button>
