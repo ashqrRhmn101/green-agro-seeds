@@ -88,6 +88,7 @@ function showPage(pageId) {
   if (pageId === "catalog") renderCatalog();
   if (pageId === "ledger") renderCustomerList();
   if (pageId === "history") renderHistory();
+  if (pageId === "stock") { initStockForm(); renderStockPage(); }
 }
 
 function toast(msg) {
@@ -165,6 +166,7 @@ function populateQtyChips() {
   ).join("");
   wrap.dataset.selected = "0";
   updateLivePriceHint();
+  updateStockAvailabilityHint();
 }
 
 function selectQtyChip(idx) {
@@ -172,6 +174,7 @@ function selectQtyChip(idx) {
   wrap.dataset.selected = idx;
   [...wrap.children].forEach((c, i) => c.classList.toggle("active", i === idx));
   updateLivePriceHint();
+  updateStockAvailabilityHint();
 }
 
 function getSelectedOption() {
@@ -189,6 +192,7 @@ function setSaleMode(mode) {
   document.getElementById("bulkKgWrap").style.display = mode === "bulk" ? "block" : "none";
   document.getElementById("bulkRateWrap").style.display = mode === "bulk" ? "block" : "none";
   updateLivePriceHint();
+  updateStockAvailabilityHint();
 }
 
 function updateLivePriceHint() {
@@ -201,6 +205,33 @@ function updateLivePriceHint() {
     const rate = document.getElementById("bulkRateType").value === "bulk" ? option.bulkPrice : option.kgPrice;
     hint.textContent = `প্রতি কেজি = ${formatTaka(rate)}`;
   }
+}
+
+/* স্টক ইনভেন্টরি পেজে ট্র্যাক করা থাকলে এখানে লাইভ স্টক ও চাহিদার তুলনা দেখায় —
+   স্টক কম পড়লেও বিক্রি আটকানো হয় না, শুধু লাল রঙে সতর্ক করা হয়। */
+function updateStockAvailabilityHint() {
+  const hint = document.getElementById("stockAvailHint");
+  if (!hint) return;
+  const { cat, variety, option } = getSelectedOption();
+  if (!option || typeof getStockKg !== "function") { hint.style.display = "none"; return; }
+
+  const stockKg = getStockKg(cat.category, variety.name);
+  if (stockKg === null) { hint.style.display = "none"; return; } // এই জাতের স্টক ট্র্যাক করা হচ্ছে না
+
+  let requiredKg = 0;
+  if (saleMode === "packet") {
+    const count = Number(document.getElementById("packetCount").value || 0);
+    requiredKg = (option.qty * count) / 1000;
+  } else {
+    requiredKg = Number(document.getElementById("bulkKg").value || 0);
+  }
+
+  const insufficient = requiredKg > 0 && requiredKg > stockKg;
+  hint.style.display = "block";
+  hint.style.color = insufficient ? "var(--rust)" : "var(--ink-muted)";
+  hint.textContent = insufficient
+    ? `⚠️ স্টকে আছে ${stockKg.toLocaleString("bn-BD")} কেজি — চাহিদা ${requiredKg.toLocaleString("bn-BD")} কেজি, স্টক অপর্যাপ্ত (তবুও বিক্রি করা যাবে)`
+    : `স্টকে আছে ${stockKg.toLocaleString("bn-BD")} কেজি`;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -358,6 +389,12 @@ async function saveSale() {
   }
 
   pushSaleToSheet(sale);
+
+  // বিক্রি নিশ্চিত হলো — এখন প্রতিটা আইটেমের সমপরিমাণ কেজি স্টক থেকে বিয়োগ হবে
+  // (যেসব জাতের স্টক ট্র্যাক করা আছে শুধু তাদেরটাই; বাকিগুলো স্কিপ হয়ে যাবে)
+  if (typeof deductStockForSale === "function") {
+    deductStockForSale(sale.items).then(() => { if (typeof renderStockPage === "function") renderStockPage(); });
+  }
 
   // ধাপ ৩: এই অর্ডারের চেয়ে বেশি টাকা দিলে (overpayment), সেই অতিরিক্ত অংশটা
   // গ্রাহকের পুরনো বকেয়া চালান(গুলো)-তে (সবচেয়ে পুরনোটা আগে) বণ্টন হয়ে যায় —
@@ -533,7 +570,7 @@ function updateSyncStatusUI() {
 }
 
 async function fullSyncFromSheet() {
-  await Promise.all([syncProductsFromSheet(), syncLedgerFromSheet(), syncSalesFromSheet()]);
+  await Promise.all([syncProductsFromSheet(), syncLedgerFromSheet(), syncSalesFromSheet(), syncStockFromSheet()]);
 }
 
 async function refreshAllViews() {
@@ -541,6 +578,7 @@ async function refreshAllViews() {
   renderCatalog();
   renderCustomerList();
   renderHistory();
+  if (document.getElementById("page-stock")) { initStockForm(); renderStockPage(); }
 }
 
 async function saveWebAppUrl(e) {
@@ -833,6 +871,8 @@ window.addEventListener("DOMContentLoaded", () => {
     renderOrderItems();
     initCustomerAutofill();
     document.getElementById("paidAmount").addEventListener("input", updateGrandTotal);
+    document.getElementById("packetCount").addEventListener("input", updateStockAvailabilityHint);
+    document.getElementById("bulkKg").addEventListener("input", updateStockAvailabilityHint);
     document.getElementById("oldDueAmount").addEventListener("input", updateGrandTotal);
     document.getElementById("bulkRateType").addEventListener("change", updateLivePriceHint);
     document.getElementById("customProductForm").addEventListener("submit", addCustomProduct);
@@ -841,6 +881,12 @@ window.addEventListener("DOMContentLoaded", () => {
     document.getElementById("quickAddQtyForm").addEventListener("submit", submitQuickAddQty);
     document.getElementById("webAppUrlForm").addEventListener("submit", saveWebAppUrl);
     document.getElementById("updatePaymentForm").addEventListener("submit", submitUpdatePayment);
+    document.getElementById("stockEntryForm").addEventListener("submit", submitStockEntry);
+    document.getElementById("stockVariety").addEventListener("change", fillExistingStockHint);
+    document.getElementById("stockKgInput").addEventListener("input", updateStockLivePreview);
+    document.getElementById("stockCostInput").addEventListener("input", updateStockLivePreview);
+    document.getElementById("stockSellingInput").addEventListener("input", updateStockLivePreview);
+    document.getElementById("editStockForm").addEventListener("submit", submitEditStock);
     updateSyncStatusUI();
   } catch (err) {
     // কোনো একটা ফিচার লোড হতে ব্যর্থ হলেও যেন পুরো পেজ ফাঁকা/সাদা হয়ে না যায় —
