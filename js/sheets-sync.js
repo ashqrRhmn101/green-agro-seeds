@@ -105,3 +105,12 @@ function sheetSaveSale(sale) {
 }
 
 function sheetUpdateSale(fields) { return jsonpRequest({ action: "updateSale", ...fields }); }
+
+/* ---------------------------------------------------------------------- */
+/* Stock Inventory                                                         */
+/* ---------------------------------------------------------------------- */
+function sheetFetchStock() { return jsonpRequest({ action: "fetchStock" }); }
+function sheetRestockEntry(p) { return jsonpRequest({ action: "restockEntry", ...p }); }
+function sheetSetStockFields(p) { return jsonpRequest({ action: "setStockFields", ...p }); }
+function sheetDeleteStock(id) { return jsonpRequest({ action: "deleteStock", id }); }
+function sheetAdjustStock(p) { return jsonpRequest({ action: "adjustStock", ...p }); }
