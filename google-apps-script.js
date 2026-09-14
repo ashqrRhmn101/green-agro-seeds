@@ -29,6 +29,7 @@ const SHEETS = {
   CUSTOMERS: "Customers",
   LEDGER: "Ledger",
   SALES: "Sales",
+  STOCK: "Stock",
 };
 
 const HEADERS = {
@@ -36,6 +37,7 @@ const HEADERS = {
   Customers: ["phone", "name", "address", "district", "thana", "varietyNote"],
   Ledger:    ["timestamp", "phone", "type", "amount", "note"],
   Sales:     ["invoiceNo", "date", "customerName", "customerPhone", "customerDistrict", "customerThana", "customerAddress", "itemsSummary", "itemsJSON", "itemsTotal", "oldDueAmount", "grandTotal", "paidAmount", "dueAmount"],
+  Stock:     ["id", "category", "variety", "stockKg", "costPricePerKg", "sellingPricePerKg", "remarks", "lastUpdated"],
 };
 
 /* এই ফাংশনটা প্রথমবার ম্যানুয়ালি Run করতে হবে — ৪টা ট্যাব ও হেডার তৈরি করে দেয় */
@@ -76,7 +78,7 @@ function addMissingColumns() {
 
 function doGet(e) {
   const action = e.parameter.action;
-  const WRITE_ACTIONS = ["addProduct", "updateProduct", "deleteProduct", "upsertCustomer", "addLedgerEntry", "saveSale", "updateSale"];
+  const WRITE_ACTIONS = ["addProduct", "updateProduct", "deleteProduct", "upsertCustomer", "addLedgerEntry", "saveSale", "updateSale", "restockEntry", "setStockFields", "deleteStock", "adjustStock"];
   let result;
   let lock;
   try {
@@ -102,6 +104,12 @@ function doGet(e) {
       case "fetchSales":  result = getRows_(SHEETS.SALES); break;
       case "saveSale":    result = saveSale_(e.parameter); break;
       case "updateSale":  result = updateSale_(e.parameter); break;
+
+      case "fetchStock":      result = getRows_(SHEETS.STOCK); break;
+      case "restockEntry":    result = restockEntry_(e.parameter); break;
+      case "setStockFields":  result = setStockFields_(e.parameter); break;
+      case "deleteStock":     result = deleteStock_(e.parameter); break;
+      case "adjustStock":     result = adjustStock_(e.parameter); break;
 
       default: result = { error: "unknown action: " + action };
     }
@@ -254,6 +262,95 @@ function updateSale_(p) {
     }
   });
   return { ok: true };
+}
+
+/* ---------------------------------------------------------------------- */
+/* Stock Inventory                                                          */
+/* স্টক ক্যাটাগরি+জাত অনুযায়ী কেজিতে ট্র্যাক হয় (একটা প্যাকেজিং সাইজের জন্য
+   আলাদা না, কারণ আসল মাল গুদামে কেজি হিসেবেই থাকে)। নতুন মাল এলে (restock)
+   ওজন-গড় (weighted average) ক্রয়মূল্য এখানেই হিসাব হয় — এই একই জায়গায় লক
+   থাকায় দুইজন স্টাফ একসাথে রিস্টক করলেও হিসাব সবসময় নিখুঁত থাকে।            */
+/* ---------------------------------------------------------------------- */
+
+function findStockRow_(sheet, category, variety) {
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const catIdx = headers.indexOf("category");
+  const varIdx = headers.indexOf("variety");
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][catIdx]) === String(category) && String(data[i][varIdx]) === String(variety)) return i + 1;
+  }
+  return -1;
+}
+
+function restockEntry_(p) {
+  const sheet = getSheet_(SHEETS.STOCK);
+  const addKg = Number(p.addKg) || 0;
+  const costPerKg = Number(p.costPerKg) || 0;
+  const sellingPerKg = Number(p.sellingPerKg) || 0;
+  const rowIdx = findStockRow_(sheet, p.category, p.variety);
+
+  if (rowIdx === -1) {
+    const id = "s" + new Date().getTime();
+    appendRowByHeaders_(sheet, {
+      id, category: p.category, variety: p.variety, stockKg: addKg,
+      costPricePerKg: costPerKg, sellingPricePerKg: sellingPerKg,
+      remarks: p.remarks || "", lastUpdated: new Date(),
+    });
+    return { ok: true, id, stockKg: addKg, costPricePerKg: costPerKg, sellingPricePerKg: sellingPerKg };
+  }
+
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const existingStock = Number(sheet.getRange(rowIdx, headers.indexOf("stockKg") + 1).getValue()) || 0;
+  const existingCost = Number(sheet.getRange(rowIdx, headers.indexOf("costPricePerKg") + 1).getValue()) || 0;
+  const existingId = sheet.getRange(rowIdx, headers.indexOf("id") + 1).getValue();
+  const newStock = existingStock + addKg;
+  const weightedCost = newStock > 0 ? ((existingStock * existingCost) + (addKg * costPerKg)) / newStock : costPerKg;
+
+  setRowByHeaders_(sheet, rowIdx, {
+    id: existingId, category: p.category, variety: p.variety,
+    stockKg: newStock, costPricePerKg: Math.round(weightedCost * 100) / 100,
+    sellingPricePerKg: sellingPerKg, remarks: p.remarks || undefined, lastUpdated: new Date(),
+  });
+  return { ok: true, id: existingId, stockKg: newStock, costPricePerKg: weightedCost, sellingPricePerKg: sellingPerKg };
+}
+
+/* সরাসরি সংশোধনের জন্য (যেমন ভুল দাম টাইপ হলে ঠিক করা) — কোনো ওজন-গড় হিসাব হয় না,
+   যা পাঠানো হবে ঠিক তাই বসে যাবে */
+function setStockFields_(p) {
+  const sheet = getSheet_(SHEETS.STOCK);
+  const rowIdx = findRowIndexByValue_(sheet, "id", p.id);
+  if (rowIdx === -1) return { error: "stock entry not found: " + p.id };
+  const fields = { lastUpdated: new Date() };
+  ["category", "variety", "stockKg", "costPricePerKg", "sellingPricePerKg", "remarks"].forEach(f => {
+    if (p[f] !== undefined) fields[f] = p[f];
+  });
+  setRowByHeaders_(sheet, rowIdx, fields);
+  return { ok: true };
+}
+
+function deleteStock_(p) {
+  const sheet = getSheet_(SHEETS.STOCK);
+  const rowIdx = findRowIndexByValue_(sheet, "id", p.id);
+  if (rowIdx === -1) return { error: "stock entry not found: " + p.id };
+  sheet.deleteRow(rowIdx);
+  return { ok: true };
+}
+
+/* বিক্রয় হলে স্টক থেকে বিয়োগ করার জন্য — deltaKg ঋণাত্মক হবে বিক্রয়ের সময়।
+   কোনো নির্দিষ্ট জাতের স্টক-ট্র্যাকিং করা না থাকলে চুপচাপ স্কিপ হয়ে যাবে
+   (এরর দেখাবে না, কারণ স্টক ট্র্যাকিং ঐচ্ছিক)। */
+function adjustStock_(p) {
+  const sheet = getSheet_(SHEETS.STOCK);
+  const rowIdx = findStockRow_(sheet, p.category, p.variety);
+  if (rowIdx === -1) return { ok: true, skipped: true };
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const col = headers.indexOf("stockKg") + 1;
+  const current = Number(sheet.getRange(rowIdx, col).getValue()) || 0;
+  const updated = current + (Number(p.deltaKg) || 0);
+  sheet.getRange(rowIdx, col).setValue(updated);
+  sheet.getRange(rowIdx, headers.indexOf("lastUpdated") + 1).setValue(new Date());
+  return { ok: true, stockKg: updated };
 }
 
 /* ---------------------------------------------------------------------- */
