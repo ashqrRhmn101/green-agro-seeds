@@ -23,6 +23,7 @@ function filterStockRows(rows) {
 
 function initStockForm() {
   const catSel = document.getElementById("stockCategory");
+  // console.log(catSel);
   if (!catSel) return;
   const catalog = getFullCatalog();
   catSel.innerHTML = catalog.map(c => `<option value="${c.category}">${c.category}</option>`).join("");
