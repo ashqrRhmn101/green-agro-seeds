@@ -91,6 +91,10 @@ function buildInvoiceHTML(sale) {
         <tbody>${rows}</tbody>
       </table>
       <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:14px">
+        ${sale.discountAmount > 0 ? `
+        <tr><td style="padding:4px 8px;text-align:right;color:#56685C">পণ্যের মোট মূল্য</td><td style="padding:4px 8px;text-align:right;width:140px" class="en">৳ ${(sale.itemsTotal ?? (sale.grandTotal + sale.discountAmount)).toLocaleString("bn-BD")}</td></tr>
+        <tr><td style="padding:4px 8px;text-align:right;color:#0d4e24;font-weight:600">স্পেশাল ডিসকাউন্ট${sale.discountType === "percent" && sale.discountValue ? ` (${Number(sale.discountValue).toLocaleString("bn-BD")}%)` : ""}</td><td style="padding:4px 8px;text-align:right;font-weight:600;color:#0d4e24;width:140px" class="en">− ৳ ${sale.discountAmount.toLocaleString("bn-BD")}</td></tr>
+        ` : ""}
         <tr><td style="padding:4px 8px;text-align:right">সর্বমোট (এই চালান)</td><td style="padding:4px 8px;text-align:right;font-weight:700;width:140px" class="en">৳ ${sale.grandTotal.toLocaleString("bn-BD")}</td></tr>
         <tr><td style="padding:4px 8px;text-align:right">পরিশোধিত</td><td style="padding:4px 8px;text-align:right" class="en">৳ ${sale.paidAmount.toLocaleString("bn-BD")}</td></tr>
         <tr><td style="padding:4px 8px;text-align:right;color:${sale.dueAmount > 0 ? '#B5502E' : '#0d4e24'}">এই চালানের বাকি</td><td style="padding:4px 8px;text-align:right;font-weight:700;color:${sale.dueAmount > 0 ? '#B5502E' : '#0d4e24'}" class="en">৳ ${sale.dueAmount.toLocaleString("bn-BD")}</td></tr>

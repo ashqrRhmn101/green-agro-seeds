@@ -56,7 +56,7 @@ function renderHistory() {
               <td>${new Date(s.date).toLocaleDateString("bn-BD")}</td>
               <td>${s.customerName}<br><span style="color:var(--ink-faint);font-size:11.5px">${s.customerPhone}</span></td>
               <td>${s.items.length} আইটেম</td>
-              <td class="en">${formatTaka(s.grandTotal)}</td>
+              <td class="en">${formatTaka(s.grandTotal)}${s.discountAmount > 0 ? `<br><span style="color:var(--green-2);font-size:11.5px">ডিসকাউন্ট −${formatTaka(s.discountAmount)}</span>` : ""}</td>
               <td class="en">${formatTaka(s.paidAmount)}</td>
               <td class="en" style="color:${s.dueAmount > 0 ? 'var(--rust)' : 'var(--green-2)'}">${formatTaka(s.dueAmount)}</td>
               <td>
@@ -74,12 +74,12 @@ function renderHistory() {
 
 function exportHistoryCSV() {
   const sales = filterSales(getAllSales().slice().reverse());
-  const headers = ["চালান নং", "তারিখ", "গ্রাহকের নাম", "ফোন", "জেলা", "থানা", "ঠিকানা", "পণ্যের বিবরণ", "সর্বমোট", "পরিশোধিত", "বাকি"];
+  const headers = ["চালান নং", "তারিখ", "গ্রাহকের নাম", "ফোন", "জেলা", "থানা", "ঠিকানা", "পণ্যের বিবরণ", "ডিসকাউন্টের আগে মোট", "ডিসকাউন্ট", "সর্বমোট (ডিসকাউন্টের পর)", "পরিশোধিত", "বাকি"];
   const rows = sales.map(s => [
     s.invoiceNo, new Date(s.date).toLocaleDateString("bn-BD"), s.customerName, s.customerPhone,
     s.customerDistrict || "", s.customerThana || "", s.customerAddress || "",
     (s.items || []).map(it => `${it.category} ${it.variety} (${it.breakdown})`).join(" | "),
-    s.grandTotal, s.paidAmount, s.dueAmount,
+    s.itemsTotal ?? (s.grandTotal + (s.discountAmount || 0)), s.discountAmount || 0, s.grandTotal, s.paidAmount, s.dueAmount,
   ]);
   downloadCSV(`sales-history-${Date.now()}.csv`, [headers, ...rows]);
 }
