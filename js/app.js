@@ -293,11 +293,44 @@ function renderOrderItems() {
   `).join("");
 }
 
+/* স্পেশাল ডিসকাউন্ট (ঐচ্ছিক, যেমন ডিলার সেলসের জন্য) — পুরো অর্ডারের উপর টাকা বা
+   শতাংশে দেওয়া যায়। চূড়ান্ত ডিসকাউন্টের টাকার অংক সবসময় 0 থেকে অর্ডারের মোট
+   মূল্যের মধ্যে সীমাবদ্ধ থাকে, যাতে সর্বমোট বিল কখনো ঋণাত্মক না হয়। */
+function getDiscountInfo(itemsTotal) {
+  const typeEl = document.getElementById("discountType");
+  const valueEl = document.getElementById("discountValue");
+  if (!typeEl || !valueEl) return { type: "amount", value: 0, amount: 0, capped: false }; // ডিসকাউন্ট ফিল্ড পেজে না থাকলে (পুরনো index.html) কোনো ডিসকাউন্ট ধরা হয় না
+  const type = typeEl.value === "percent" ? "percent" : "amount";
+  const value = Math.max(Number(valueEl.value || 0), 0);
+  let amount = type === "percent" ? Math.round(itemsTotal * value / 100) : Math.round(value);
+  const capped = amount > itemsTotal;
+  amount = Math.min(Math.max(amount, 0), itemsTotal);
+  return { type, value, amount, capped };
+}
+
 function updateGrandTotal() {
   const itemsTotal = currentOrderItems.reduce((s, it) => s + it.total, 0);
   const oldDue = Number(document.getElementById("oldDueAmount").value || 0);
-  const total = itemsTotal; // পুরাতন বকেয়া এখন শুধু তথ্যের জন্য — মোট/বাকির হিসাবে যোগ হয় না
+  const discount = getDiscountInfo(itemsTotal);
+  const total = itemsTotal - discount.amount; // ডিসকাউন্ট বাদ দেওয়ার পর আসল মোট; পুরাতন বকেয়া এতে যোগ হয় না
   document.getElementById("grandTotal").textContent = formatTaka(total);
+
+  // ডিসকাউন্টের লাইভ প্রিভিউ (অর্ডার আইটেম কার্ডে + মোট বিলের নিচে)
+  const preview = document.getElementById("discountPreview") || { style: {} };
+  const totalHint = document.getElementById("discountHint") || { style: {} };
+  if (discount.value > 0 && itemsTotal > 0) {
+    const label = discount.type === "percent" ? `${discount.value.toLocaleString("bn-BD")}% = ` : "";
+    preview.textContent = discount.capped
+      ? `ডিসকাউন্ট অর্ডারের মোট মূল্যের চেয়ে বেশি হতে পারে না — সর্বোচ্চ ${formatTaka(discount.amount)} ধরা হয়েছে`
+      : `ডিসকাউন্ট: ${label}−${formatTaka(discount.amount)} → ডিসকাউন্টের পর মোট ${formatTaka(total)}`;
+    preview.style.color = discount.capped ? "var(--rust)" : "var(--green-2)";
+    preview.style.display = "block";
+    totalHint.textContent = `(পণ্য ${formatTaka(itemsTotal)} − ডিসকাউন্ট ${formatTaka(discount.amount)})`;
+    totalHint.style.display = "block";
+  } else {
+    preview.style.display = "none";
+    totalHint.style.display = "none";
+  }
 
   const hint = document.getElementById("oldDueHint");
   if (oldDue > 0) {
@@ -341,7 +374,8 @@ async function saveSale() {
 
   const oldDue = Number(document.getElementById("oldDueAmount").value || 0); // শুধু PDF-এ দেখানোর জন্য, হিসাবে না
   const itemsTotal = currentOrderItems.reduce((s, it) => s + it.total, 0);
-  const total = updateGrandTotal(); // = itemsTotal
+  const discount = getDiscountInfo(itemsTotal); // ঐচ্ছিক স্পেশাল ডিসকাউন্ট (না দিলে amount = 0)
+  const total = updateGrandTotal(); // = itemsTotal − ডিসকাউন্ট (এই নেট মোট দিয়েই paid/বাকি/ledger সব হিসাব হয়)
   const explicitPaid = Number(document.getElementById("paidAmount").value || 0);
 
   // ধাপ ১: প্রথমে এই অর্ডারের নিজের খরচ মেটানো হয় (এই চালানের paid কখনো তার
@@ -368,9 +402,12 @@ async function saveSale() {
     customerThana: thana,
     customerAddress: address,
     items: currentOrderItems.map(it => ({ ...it })),
-    itemsTotal,
+    itemsTotal,                       // ডিসকাউন্টের আগের মোট
+    discountAmount: discount.amount,  // ডিসকাউন্টের টাকার অংক (০ হলে কোনো ডিসকাউন্ট দেওয়া হয়নি)
+    discountType: discount.type,      // "amount" (টাকা) বা "percent" (শতাংশ)
+    discountValue: discount.value,    // ইউজার যা লিখেছেন (যেমন ৫ মানে ৫% বা ৫ টাকা)
     oldDueAmount: oldDue,
-    grandTotal: total,
+    grandTotal: total,                // ডিসকাউন্টের পরের নেট মোট
     paidAmount: paid,
     dueAmount: due,
   };
@@ -478,6 +515,9 @@ async function syncSalesFromSheet() {
         customerAddress: r.customerAddress || "",
         items: JSON.parse(r.itemsJSON || "[]"),
         itemsTotal: Number(r.itemsTotal || 0),
+        discountAmount: Number(r.discountAmount || 0),
+        discountType: r.discountType === "percent" ? "percent" : "amount",
+        discountValue: Number(r.discountValue || 0),
         oldDueAmount: Number(r.oldDueAmount || 0),
         grandTotal: Number(r.grandTotal || 0),
         paidAmount: Number(r.paidAmount || 0),
@@ -622,6 +662,8 @@ function resetSaleForm() {
   document.getElementById("custNote").value = "";
   document.getElementById("oldDueAmount").value = "";
   document.getElementById("paidAmount").value = "";
+  const dv = document.getElementById("discountValue"); if (dv) dv.value = "";
+  const dt = document.getElementById("discountType"); if (dt) dt.value = "amount";
   const hint = document.getElementById("custBalanceHint");
   if (hint) hint.style.display = "none";
   updateGrandTotal();
@@ -874,6 +916,8 @@ window.addEventListener("DOMContentLoaded", () => {
     document.getElementById("packetCount").addEventListener("input", updateStockAvailabilityHint);
     document.getElementById("bulkKg").addEventListener("input", updateStockAvailabilityHint);
     document.getElementById("oldDueAmount").addEventListener("input", updateGrandTotal);
+    document.getElementById("discountValue")?.addEventListener("input", updateGrandTotal);
+    document.getElementById("discountType")?.addEventListener("change", updateGrandTotal);
     document.getElementById("bulkRateType").addEventListener("change", updateLivePriceHint);
     document.getElementById("customProductForm").addEventListener("submit", addCustomProduct);
     document.getElementById("editProductForm").addEventListener("submit", submitEditProduct);
