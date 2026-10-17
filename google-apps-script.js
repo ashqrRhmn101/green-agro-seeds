@@ -36,7 +36,7 @@ const HEADERS = {
   Products:  ["id", "category", "variety", "qty", "unit", "packetPrice", "kgPrice", "bulkPrice", "retailPrice"],
   Customers: ["phone", "name", "address", "district", "thana", "varietyNote"],
   Ledger:    ["timestamp", "phone", "type", "amount", "note"],
-  Sales:     ["invoiceNo", "date", "customerName", "customerPhone", "customerDistrict", "customerThana", "customerAddress", "itemsSummary", "itemsJSON", "itemsTotal", "oldDueAmount", "grandTotal", "paidAmount", "dueAmount"],
+  Sales:     ["invoiceNo", "date", "customerName", "customerPhone", "customerDistrict", "customerThana", "customerAddress", "itemsSummary", "itemsJSON", "itemsTotal", "discountAmount", "discountType", "discountValue", "oldDueAmount", "grandTotal", "paidAmount", "dueAmount"],
   Stock:     ["id", "category", "variety", "stockKg", "costPricePerKg", "sellingPricePerKg", "remarks", "lastUpdated"],
 };
 
@@ -245,7 +245,9 @@ function saveSale_(p) {
     customerPhone: "'" + normalizePhone_(p.customerPhone),
     customerDistrict: p.customerDistrict || "", customerThana: p.customerThana || "",
     customerAddress: p.customerAddress || "", itemsSummary: p.itemsSummary || "",
-    itemsJSON: p.itemsJSON, itemsTotal: p.itemsTotal, oldDueAmount: p.oldDueAmount,
+    itemsJSON: p.itemsJSON, itemsTotal: p.itemsTotal,
+    discountAmount: p.discountAmount || 0, discountType: p.discountType || "amount", discountValue: p.discountValue || 0,
+    oldDueAmount: p.oldDueAmount,
     grandTotal: p.grandTotal, paidAmount: p.paidAmount, dueAmount: p.dueAmount,
   });
   return { ok: true };
