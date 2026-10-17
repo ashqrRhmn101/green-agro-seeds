@@ -120,6 +120,18 @@
         <div class="card card--pad">
           <p class="card-title">অর্ডার আইটেম</p>
           <div id="orderItemsList"></div>
+
+          <div class="discount-box">
+            <label class="field-label" for="discountValue">স্পেশাল ডিসকাউন্ট (ঐচ্ছিক — যেমন ডিলার সেলসে)</label>
+            <div class="discount-input-row">
+              <input type="number" id="discountValue" min="0" step="any" placeholder="0">
+              <select id="discountType" aria-label="ডিসকাউন্টের ধরন">
+                <option value="amount">৳ টাকা</option>
+                <option value="percent">% শতাংশ</option>
+              </select>
+            </div>
+            <p id="discountPreview" style="display:none;font-size:12.5px;margin:8px 0 0;font-weight:500"></p>
+          </div>
         </div>
       </div>
 
@@ -175,6 +187,7 @@
         <div class="total-card">
           <p class="total-card__label">সর্বমোট বিল</p>
           <p class="total-card__value en" id="grandTotal">৳ 0</p>
+          <p id="discountHint" class="en" style="font-size:11.5px;opacity:.85;margin:6px 0 0;display:none"></p>
           <p id="oldDueHint" class="en" style="font-size:11.5px;opacity:.8;margin:6px 0 0;display:none"></p>
         </div>
 
